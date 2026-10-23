@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
+import altair as alt
 from datetime import datetime
 from io import BytesIO
 from visit_calculator import visit_calculator
@@ -1462,6 +1463,7 @@ class DataVisualizer:
                  region_data.loc[mask_project_plan, 'План проекта, шт.']) - 1
             ).round(3) * 100
         
+        
         region_data['△План/Факт на дату, шт'] = (
             region_data['Факт на дату, шт.'] - region_data['План на дату, шт.']
         ).round(1)
@@ -2901,6 +2903,411 @@ class DataVisualizer:
             use_container_width=True,
             key="download_asm_summary"
         )
+
+    # ============================================================
+    # РЕТРО-АНАЛИТИКА (перенесено из проекта «Аналитика визитов»)
+    # ============================================================
+
+    def _month_label(self, year: int, month: int) -> str:
+        return f"{month}_{year % 100:02d}"
+
+    def _compute_kpi_retro(
+        self,
+        df_client_all: pd.DataFrame,
+        months: list,
+    ) -> dict:
+        plans = []
+        facts = []
+        rs_counts = []
+        plan_tps = []
+        fact_tps = []
+
+        for y, m in months:
+            sub = df_client_all[
+                (df_client_all["Год"] == y)
+                & (df_client_all["Месяц"] == m)
+            ]
+            if sub.empty:
+                continue
+            plans.append(len(sub))
+            facts.append(int((sub["Тип файла"] == "ЗП").sum()))
+            rs_counts.append(sub["RS"].dropna().nunique())
+            
+            zp_sub = sub[sub["Тип файла"] == "ЗП"]
+            if not zp_sub.empty:
+                plan_tp_val = zp_sub["План ТП, руб"].sum(min_count=1)
+                fact_tp_val = zp_sub["Факт ТП, руб"].sum(min_count=1)
+                if pd.notna(plan_tp_val):
+                    plan_tps.append(plan_tp_val)
+                if pd.notna(fact_tp_val):
+                    fact_tps.append(fact_tp_val)
+
+        n = len(plans)
+        if n == 0:
+            return {
+                "plan_avg": 0, "fact_avg": 0, "pf_percent": 0,
+                "rs_count_avg": 0, "ankets_per_rs": 0,
+                "plan_tp_avg": 0, "fact_tp_avg": 0, "pf_tp_avg": 0,
+            }
+
+        plan_avg = round(sum(plans) / n)
+        fact_avg = round(sum(facts) / n)
+        rs_avg = round(sum(rs_counts) / n)
+        pf_percent = (round(fact_avg / plan_avg * 100) if plan_avg > 0 else 0)
+        ankets = (round(fact_avg / rs_avg) if rs_avg > 0 else 0)
+        
+        plan_tp_avg = round(sum(plan_tps) / len(plan_tps)) if plan_tps else 0
+        fact_tp_avg = round(sum(fact_tps) / len(fact_tps)) if fact_tps else 0
+        pf_tp_avg = plan_tp_avg - fact_tp_avg
+
+        return {
+            "plan_avg": plan_avg, "fact_avg": fact_avg, "pf_percent": pf_percent,
+            "rs_count_avg": rs_avg, "ankets_per_rs": ankets,
+            "plan_tp_avg": plan_tp_avg, "fact_tp_avg": fact_tp_avg, "pf_tp_avg": pf_tp_avg,
+        }
+
+    def _compute_monthly_table_retro(
+        self,
+        df_client_all: pd.DataFrame,
+        months: list,
+    ) -> pd.DataFrame:
+        rows = {
+            "План проекта, шт": [],
+            "Факт проекта, шт": [],
+            "ПФ клиент, %": [],
+            "Кол-во RS, чел.": [],
+            "Кол-во анкет на 1 RS, шт.": [],
+            "План ТП, руб": [],
+            "Факт ТП, руб": [],
+            "ПФ ТП, руб": [],
+        }
+        for y, m in reversed(months):
+            sub = df_client_all[
+                (df_client_all["Год"] == y)
+                & (df_client_all["Месяц"] == m)
+            ]
+            if sub.empty:
+                for k in rows.keys():
+                    rows[k].append(None)
+            else:
+                plan = len(sub)
+                fact = int((sub["Тип файла"] == "ЗП").sum())
+                pf = (fact / plan * 100) if plan > 0 else 0.0
+                rs_unique = sub["RS"].dropna().nunique()
+                ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
+                
+                zp_sub = sub[sub["Тип файла"] == "ЗП"]
+                if not zp_sub.empty:
+                    plan_tp = zp_sub["План ТП, руб"].sum(min_count=1)
+                    fact_tp = zp_sub["Факт ТП, руб"].sum(min_count=1)
+                    pf_tp = plan_tp - fact_tp if pd.notna(plan_tp) and pd.notna(fact_tp) else None
+                else:
+                    plan_tp = None
+                    fact_tp = None
+                    pf_tp = None
+                
+                rows["План проекта, шт"].append(plan)
+                rows["Факт проекта, шт"].append(fact)
+                rows["ПФ клиент, %"].append(round(pf))
+                rows["Кол-во RS, чел."].append(rs_unique)
+                rows["Кол-во анкет на 1 RS, шт."].append(round(ankets))
+                rows["План ТП, руб"].append(plan_tp)
+                rows["Факт ТП, руб"].append(fact_tp)
+                rows["ПФ ТП, руб"].append(pf_tp)
+
+        columns = [self._month_label(y, m) for y, m in reversed(months)]
+        table = pd.DataFrame(rows, index=columns).T
+        table.index.name = "Метрика"
+        return table
+
+    def _render_bar_chart_retro(
+        self,
+        df: pd.DataFrame, metric_name: str, title: str, y_title: str,
+        color_rule, is_currency=False
+    ):
+        font = (
+            "Inter, -apple-system, BlinkMacSystemFont, "
+            "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        )
+        series = df.loc[metric_name]
+        chart_data = pd.DataFrame({
+            "Месяц": series.index, "Value": series.values
+        }).dropna()
+
+        if not chart_data.empty:
+            chart_data["Value"] = chart_data["Value"].astype(float)
+            chart_data = chart_data.iloc[::-1].reset_index(drop=True)
+            chart_data["Цвет"] = chart_data["Value"].apply(color_rule)
+
+            max_val = chart_data["Value"].max()
+            min_val = chart_data["Value"].min()
+            
+            y_upper = max(max_val * 1.2, 1)
+            y_lower = min(min_val * 1.2, 0) if min_val < 0 else 0
+
+            bars = alt.Chart(chart_data).mark_bar(
+                cornerRadiusTopLeft=2, cornerRadiusTopRight=2,
+            ).encode(
+                x=alt.X(
+                    "Месяц:N", sort=None,
+                    axis=alt.Axis(labelAngle=0, labelFont=font, title=None),
+                ),
+                y=alt.Y(
+                    "Value:Q",
+                    scale=alt.Scale(domain=[y_lower, y_upper]),
+                    axis=alt.Axis(format=".0f", title=y_title, labelFont=font, titleFont=font),
+                ),
+                color=alt.Color("Цвет:N", scale=None, legend=None),
+            )
+
+            text = bars.mark_text(
+                align="center", baseline="bottom", dy=-5,
+                font=font, fontSize=12, color="#333333",
+            ).encode(text=alt.Text("Value:Q", format=".0f" if not is_currency else ",.0f"))
+
+            chart = (bars + text).properties(
+                title=alt.TitleParams(text=title, font=font, fontSize=16, anchor="start"),
+                height=400,
+            ).configure_view(strokeWidth=0).configure_axis(grid=False)
+
+            st.altair_chart(chart, use_container_width=True)
+
+    def _get_quantile_colors(self, series, top_is_violet=True):
+        clean_series = series.dropna()
+        if clean_series.empty or clean_series.min() == clean_series.max():
+            return lambda x: "#757575"
+        q10 = clean_series.quantile(0.1)
+        q90 = clean_series.quantile(0.9)
+
+        def color_func(val):
+            if val >= q90:
+                return "#6A1B9A" if top_is_violet else "#F50057"
+            elif val <= q10:
+                return "#F50057" if top_is_violet else "#6A1B9A"
+            else:
+                return "#757575"
+        return color_func
+
+    def _pf_color(self, val):
+        if val == 100:
+            return "#6A1B9A"
+        elif val < 80:
+            return "#F50057"
+        else:
+            return "#757575"
+
+    def create_retro_clients_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «Клиенты»"""
+        if df_dataset is None or df_dataset.empty:
+            st.info("Нет данных для отображения.")
+            return
+
+        st.markdown("### 📥 Выгрузка датасета")
+        col_f1, col_f2 = st.columns(2)
+        
+        with col_f1:
+            pairs = sorted(set(
+                (int(y), int(m)) for y, m in df_dataset[["Год", "Месяц"]]
+                .dropna().itertuples(index=False, name=None)
+            ))
+            
+            period_opts = []
+            if pairs:
+                y_min, m_min = pairs[0]
+                y_max, m_max = pairs[-1]
+                
+                y, m = y_min, m_min
+                while (y, m) <= (y_max, m_max):
+                    period_opts.append(f"{m:02d}.{y}")
+                    if m == 12:
+                        y, m = y + 1, 1
+                    else:
+                        m += 1
+            
+            period_selected = st.multiselect(
+                "Выберите месяцы для выгрузки",
+                options=period_opts,
+                default=period_opts[-3:] if len(period_opts) >= 3 else period_opts,
+                key="retro_export_period"
+            )
+        
+        with col_f2:
+            all_clients = sorted(df_dataset["Клиент"].dropna().unique().astype(str).tolist())
+            clients_selected = st.multiselect(
+                "Выберите клиентов для выгрузки",
+                options=all_clients,
+                default=[],
+                key="retro_export_clients"
+            )
+
+        if st.button("📥 Сформировать Excel для выгрузки", type="primary", key="retro_build_export_btn"):
+            df_export = df_dataset.copy()
+            
+            if period_selected:
+                parsed_periods = set()
+                for p in period_selected:
+                    mm, yyyy = p.split(".")
+                    parsed_periods.add(int(yyyy) * 100 + int(mm))
+                
+                ym = (
+                    df_export["Год"].astype("int64") * 100
+                    + df_export["Месяц"].astype("int64")
+                )
+                df_export = df_export[ym.isin(parsed_periods)]
+                
+            if clients_selected:
+                df_export = df_export[df_export["Клиент"].isin(clients_selected)]
+                
+            if df_export.empty:
+                st.warning("По выбранным фильтрам данных нет.")
+            else:
+                export_buffer = io_buffer = BytesIO()
+                with pd.ExcelWriter(export_buffer, engine="openpyxl") as writer:
+                    df_export.to_excel(writer, index=False, sheet_name="Данные")
+                
+                st.session_state.analytics_export_bytes = export_buffer.getvalue()
+                st.session_state.analytics_export_rows = len(df_export)
+        
+        if st.session_state.get("analytics_export_bytes"):
+            st.success(f"Файл готов ({st.session_state.analytics_export_rows} строк)")
+            st.download_button(
+                "Скачать Excel",
+                data=st.session_state.analytics_export_bytes,
+                file_name="dataset_export.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="retro_download_export_btn"
+            )
+        st.markdown("---")
+
+        clients = sorted(
+            df_dataset["Клиент"].dropna().unique().astype(str).tolist()
+        )
+
+        if not clients:
+            st.warning("В датасете нет клиентов.")
+            return
+
+        client = st.selectbox(
+            "Клиент", options=clients, key="retro_clients_client"
+        )
+
+        df_client_all = df_dataset[df_dataset["Клиент"] == client]
+
+        st.markdown("### 📊 Ключевые показатели")
+        report_key = (client,)
+
+        if st.button("Рассчитать", type="primary", key="retro_calc_btn"):
+            if df_client_all.empty:
+                st.session_state.analytics_report = {
+                    "key": report_key, "empty": True, "kpi": None, "table": None,
+                }
+            else:
+                pairs = sorted(set(
+                    (int(y), int(m)) for y, m in df_client_all[["Год", "Месяц"]]
+                    .dropna().itertuples(index=False, name=None)
+                ))
+                if pairs:
+                    y_min, m_min = pairs[0]
+                    y_max, m_max = pairs[-1]
+                    months = []
+                    y, m = y_min, m_min
+                    while (y, m) <= (y_max, m_max):
+                        months.append((y, m))
+                        if m == 12:
+                            y, m = y + 1, 1
+                        else:
+                            m += 1
+                else:
+                    months = []
+
+                kpi = self._compute_kpi_retro(df_client_all, months)
+                table = self._compute_monthly_table_retro(df_client_all, months)
+                st.session_state.analytics_report = {
+                    "key": report_key, "empty": False, "kpi": kpi, "table": table,
+                }
+
+        report = st.session_state.get("analytics_report")
+        if report is None or report["key"] != report_key:
+            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+        elif report["empty"]:
+            st.info("Нет данных по выбранному клиенту.")
+        else:
+            kpi = report["kpi"]
+            table = report["table"]
+
+            k1, k2, k3, k4, k5 = st.columns(5)
+            k1.metric("📊 План ср., шт", f"{kpi['plan_avg']:,}")
+            k2.metric("✅ Факт ср., шт", f"{kpi['fact_avg']:,}")
+            k3.metric("🎯 ПФ ср., %", f"{kpi['pf_percent']}%")
+            k4.metric("👥 Кол-во RS ср., чел.", f"{kpi['rs_count_avg']:,}")
+            k5.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
+            
+            tk1, tk2, tk3 = st.columns(3)
+            tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
+            tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
+            tk3.metric("📉 ПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+
+            st.markdown("### 📈 Ключевые показатели по месяцам")
+            st.dataframe(table, use_container_width=True)
+
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                table.to_excel(writer, sheet_name="Ключевые показатели")
+            st.download_button(
+                "📥 Выгрузить в Excel",
+                data=excel_buffer.getvalue(),
+                file_name=f"kpi_{client}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="retro_download_kpi_btn"
+            )
+
+            dataset_buffer = BytesIO()
+            with pd.ExcelWriter(dataset_buffer, engine="openpyxl") as writer:
+                df_client_all.to_excel(writer, index=False, sheet_name="Датасет")
+            st.download_button(
+                "📥 Выгрузить датасет (все строки клиента)",
+                data=dataset_buffer.getvalue(),
+                file_name=f"dataset_{client}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="retro_download_dataset_btn"
+            )
+
+            st.markdown("### 📊 Дашборд")
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            self._render_bar_chart_retro(
+                table, "ПФ клиент, %", "ПФ клиент, %", "ПФ клиент, %", self._pf_color
+            )
+
+            rs_series = table.loc["Кол-во RS, чел."]
+            self._render_bar_chart_retro(
+                table, "Кол-во RS, чел.", "Кол-во RS, чел.", "Кол-во RS, чел.",
+                self._get_quantile_colors(rs_series, True)
+            )
+
+            ankets_series = table.loc["Кол-во анкет на 1 RS, шт."]
+            self._render_bar_chart_retro(
+                table, "Кол-во анкет на 1 RS, шт.", "Кол-во анкет на 1 RS, шт.", "Кол-во анкет на 1 RS, шт.",
+                self._get_quantile_colors(ankets_series, False)
+            )
+            
+            pf_tp_series = table.loc["ПФ ТП, руб"]
+            self._render_bar_chart_retro(
+                table, "ПФ ТП, руб", "ПФ ТП, руб", "ПФ ТП, руб",
+                self._get_quantile_colors(pf_tp_series, True), is_currency=True
+            )
+
+    def create_retro_regions_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «Регионы» (в разработке)"""
+        st.info("В разработке.")
+
+    def create_retro_dsm_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «DSM» (в разработке)"""
+        st.info("В разработке.")
+
+    def create_retro_summary_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «Сводный» (в разработке)"""
+        st.info("В разработке.")
     
 # Глобальный экземпляр
 dataviz = DataVisualizer()
