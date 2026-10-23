@@ -69,7 +69,7 @@ if utils_path not in sys.path:
 
 # Настройка страницы
 st.set_page_config(
-    page_title="ИУ Аудиты - Аналитика",
+    page_title="ПФ визиты + предиктив",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
