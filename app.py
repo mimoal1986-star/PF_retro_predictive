@@ -15,6 +15,9 @@ from github_settings import get_multibrand_plan_manager
 from region_coefficients_parser import parse_region_coefficients_excel, preview_region_coefficients
 from github_settings import get_region_coefficient_manager
 
+# === Ретро-аналитика: загрузка Parquet ===
+from analytics_loader import read_parquet_cached, validate_parquet
+
 # Инициализация временных корректировок
 if 'temp_adjustments' not in st.session_state:
     st.session_state.temp_adjustments = []
@@ -84,7 +87,10 @@ DEFAULT_STATE = {
     'plan_calc_params': None,
     'data_calculated': False,
     'last_calculation_hash': None,
-    'last_files_hash': None
+    'last_files_hash': None,
+    # === Ретро-аналитика ===
+    'analytics_df': None,
+    'analytics_loaded_at': None,
 }
 
 for key, default_value in DEFAULT_STATE.items():
@@ -431,7 +437,7 @@ def process_all_data(settings_manager=None, force_recalc=False):
 
 
         # ============================================
-        # УДАЛЕНИЕ ДУБЛЕЙ ПО ПРИОРИТЕТУ ИЗ GOOGLE (ВЕКТОРИЗИРОВАННО)
+        # УДАЛЕНИЕ ДУБЛЕЙ ПО ПРИОРИТЕТУ ИЗ GOOGLE (ВЕКТОРИЗОВАННО)
         # ============================================
         
         if cxway_processed is not None and not cxway_processed.empty and field_df is not None and not field_df.empty:
@@ -939,6 +945,9 @@ with st.sidebar:
         # Сбрасываем все переменные session_state
         for key in list(DEFAULT_STATE.keys()):
             st.session_state[key] = DEFAULT_STATE[key]
+        # Явно чистим ретро-стейт
+        st.session_state.analytics_df = None
+        st.session_state.analytics_loaded_at = None
         st.success("✅ Все данные и кэш очищены")
         st.rerun()
         
@@ -994,7 +1003,12 @@ with st.sidebar:
 # ==============================================
 # ОСНОВНОЙ ИНТЕРФЕЙС
 # ==============================================
-tab1, tab2, tab3 = st.tabs(["📤 Загрузка данных", "📈 Отчеты", "⚙️ Настройки проектов"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📤 Загрузка данных",
+    "📈 Отчеты",
+    "🕰️ Ретро",
+    "⚙️ Настройки проектов",
+])
 
 with tab1:
     # Показываем сообщения о расчете после перезагрузки
@@ -1035,6 +1049,31 @@ with tab1:
             label_visibility="collapsed",
             help="Колонки: 'КОД' и 'Расходы на ТП/Респонденты (план на 1 ед.)'"
         )
+
+        st.markdown("---")  # разделитель
+
+        # === Ретро-аналитика: загрузка Parquet ===
+        st.subheader("1.6. 📦 Parquet (ретро-аналитика)")
+        analytics_parquet_file = st.file_uploader(
+            "Загрузите report_data.parquet",
+            type=['parquet'],
+            key="analytics_parquet_uploader",
+            label_visibility="collapsed",
+            help="Датасет ретро-аналитики визитов (не участвует в расчете План/Факт)"
+        )
+
+        if analytics_parquet_file is not None:
+            try:
+                df_parquet = read_parquet_cached(analytics_parquet_file.getvalue())
+                ok_parquet, missing_parquet = validate_parquet(df_parquet)
+                if not ok_parquet:
+                    st.error("В Parquet нет колонок: " + ", ".join(missing_parquet))
+                else:
+                    st.session_state.analytics_df = df_parquet
+                    st.session_state.analytics_loaded_at = datetime.now()
+                    st.success(f"Parquet: {len(df_parquet):,} строк")
+            except Exception as e:
+                st.error(f"Не удалось прочитать Parquet: {e}")
     
     with col2:
         st.subheader("2. 📅 Проекты Сервизория")
@@ -1246,88 +1285,38 @@ with tab2:
             # Если данных нет — показываем сообщение
             st.info("📊 Нет данных для отображения. Выполните расчет на вкладке 'Загрузка данных'.")
 
-# # ============================================
-# # ВЫГРУЗКА ПОЛЕВЫХ ПРОЕКТОВ
-# # ============================================
-# if st.session_state.cleaned_data.get('полевые_проекты') is not None:
-#     st.markdown("---")
-#     st.subheader("📥 Выгрузка данных")
-    
-#     field_projects_df = st.session_state.cleaned_data['полевые_проекты']
-    
-    
-#     # Исключаем ПроДата из выгрузки
-#     if 'Источник' in field_projects_df.columns:
-#         field_projects_df = field_projects_df[field_projects_df['Источник'] != 'Мониторинги']
-    
-#     if not field_projects_df.empty:
-#         output = BytesIO()
-#         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-#             field_projects_df.to_excel(writer, sheet_name='Полевые_проекты', index=False)
-        
-#         st.download_button(
-#             label="📥 Скачать все полевые проекты",
-#             data=output.getvalue(),
-#             file_name=f"полевые_проекты_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-#             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#             type="primary",
-#             width='stretch'
-#         )
-#     else:
-#         st.info("Нет данных для выгрузки")
-
-# # ============================================
-# # ВЫГРУЗКА НЕПОЛЕВЫХ ПРОЕКТОВ
-# # ============================================
-# if st.session_state.cleaned_data.get('неполевые_проекты') is not None:
-#     st.markdown("---")
-    
-#     non_field_projects_df = st.session_state.cleaned_data['неполевые_проекты']
-    
-#     if not non_field_projects_df.empty:
-#         output = BytesIO()
-#         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-#             non_field_projects_df.to_excel(writer, sheet_name='Неполевые_проекты', index=False)
-        
-#         st.download_button(
-#             label="📥 Скачать все неполевые проекты",
-#             data=output.getvalue(),
-#             file_name=f"неполевые_проекты_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-#             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#             type="secondary",
-#             width='stretch'
-#         )
-#     else:
-#         st.info("Нет данных для выгрузки")
-
-# # ============================================
-# # ВЫГРУЗКА ALL_PROJECTS (ОБЪЕДИНЕННЫЙ ДАТАСЕТ)
-# # ============================================
-# if 'all_projects' in st.session_state.cleaned_data:
-#     st.markdown("---")
-    
-#     all_projects_df = st.session_state.cleaned_data['all_projects']
-    
-#     if not all_projects_df.empty:
-#         output = BytesIO()
-#         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-#             all_projects_df.to_excel(writer, sheet_name='Все_проекты', index=False)
-        
-#         st.download_button(
-#             label="📥 Скачать all_projects (все проекты)",
-#             data=output.getvalue(),
-#             file_name=f"all_projects_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-#             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-#             type="secondary",
-#             width='stretch'
-#         )
-#     else:
-#         st.info("Нет данных для выгрузки")
-
-# ============================================
-# ВКЛАДКА 3: НАСТРОЙКИ ПРОЕКТОВ
-# ============================================
+# ==============================================
+# ВКЛАДКА 3: РЕТРО-АНАЛИТИКА
+# ==============================================
 with tab3:
+    st.title("🕰️ Ретро-аналитика визитов")
+
+    df_analytics = st.session_state.get('analytics_df')
+
+    if df_analytics is None:
+        st.info("📌 Загрузите Parquet-файл (report_data.parquet) на вкладке «Загрузка данных»")
+
+    else:
+        tab_retro_clients, tab_retro_regions, tab_retro_dsm, tab_retro_summary = st.tabs(
+            ["👥 Клиенты", "🗺️ Регионы", "👤 DSM", "📊 Сводный"]
+        )
+
+        with tab_retro_clients:
+            dataviz.create_retro_clients_tab(df_analytics)
+
+        with tab_retro_regions:
+            dataviz.create_retro_regions_tab(df_analytics)
+
+        with tab_retro_dsm:
+            dataviz.create_retro_dsm_tab(df_analytics)
+
+        with tab_retro_summary:
+            dataviz.create_retro_summary_tab(df_analytics)
+
+# ==============================================
+# ВКЛАДКА 4: НАСТРОЙКИ ПРОЕКТОВ (было tab3)
+# ==============================================
+with tab4:
     st.title("⚙️ Пользовательские настройки проектов")
     st.markdown("Управляйте списком проектов для расчета план/факта")
     
