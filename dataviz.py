@@ -3102,9 +3102,12 @@ class DataVisualizer:
                 
                 zp_sub = sub[sub["Тип файла"] == "ЗП"]
                 if not zp_sub.empty:
-                    plan_tp = zp_sub["План ТП, руб"].sum(min_count=1)
-                    fact_tp = zp_sub["Факт ТП, руб"].sum(min_count=1)
-                    pf_tp = plan_tp - fact_tp if pd.notna(plan_tp) and pd.notna(fact_tp) else None
+                    plan_tp = zp_sub["План ТП, руб"].mean() if "План ТП, руб" in zp_sub.columns else None
+                    fact_tp = zp_sub["Факт ТП, руб"].mean() if "Факт ТП, руб" in zp_sub.columns else None
+                    # NaN, если все значения пустые — превращаем в None для чистоты
+                    plan_tp = None if pd.isna(plan_tp) else round(float(plan_tp), 2)
+                    fact_tp = None if pd.isna(fact_tp) else round(float(fact_tp), 2)
+                    pf_tp = (plan_tp - fact_tp) if (plan_tp is not None and fact_tp is not None) else None
                 else:
                     plan_tp = None
                     fact_tp = None
