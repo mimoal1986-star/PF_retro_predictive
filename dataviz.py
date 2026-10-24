@@ -3138,15 +3138,26 @@ class DataVisualizer:
         series = df.loc[metric_name]
         chart_data = pd.DataFrame({
             "Месяц": series.index, "Value": series.values
-        }).dropna()
+        })
+        # НЕ dropna — сохраняем все месяцы (пустые останутся пустыми на графике)
+        chart_data = chart_data.iloc[::-1].reset_index(drop=True)
 
         if not chart_data.empty:
-            chart_data["Value"] = chart_data["Value"].astype(float)
-            chart_data = chart_data.iloc[::-1].reset_index(drop=True)
-            chart_data["Цвет"] = chart_data["Value"].apply(color_rule)
+            # Числовые значения (NaN остаётся NaN — Altair не нарисует столбец)
+            chart_data["Value"] = pd.to_numeric(chart_data["Value"], errors="coerce")
+            # Цвет только для непустых
+            chart_data["Цвет"] = chart_data["Value"].apply(
+                lambda v: color_rule(v) if pd.notna(v) else "#E0E0E0"
+            )
 
-            max_val = chart_data["Value"].max()
-            min_val = chart_data["Value"].min()
+            # Границы Y — по непустым значениям
+            clean_vals = chart_data["Value"].dropna()
+            if not clean_vals.empty:
+                max_val = clean_vals.max()
+                min_val = clean_vals.min()
+            else:
+                max_val = 1
+                min_val = 0
             
             y_upper = max(max_val * 1.2, 1)
             y_lower = min(min_val * 1.2, 0) if min_val < 0 else 0
