@@ -3020,8 +3020,11 @@ class DataVisualizer:
         plans = []
         facts = []
         rs_counts = []
-        plan_tps = []
-        fact_tps = []
+
+        # Собираем ВСЕ непустые значения План ТП / Факт ТП по ЗП-строкам
+        # (не суммы по месяцам — именно построчно, для среднего по строкам)
+        plan_tp_values = []
+        fact_tp_values = []
 
         for y, m in months:
             sub = df_client_all[
@@ -3036,12 +3039,11 @@ class DataVisualizer:
             
             zp_sub = sub[sub["Тип файла"] == "ЗП"]
             if not zp_sub.empty:
-                plan_tp_val = zp_sub["План ТП, руб"].sum(min_count=1)
-                fact_tp_val = zp_sub["Факт ТП, руб"].sum(min_count=1)
-                if pd.notna(plan_tp_val):
-                    plan_tps.append(plan_tp_val)
-                if pd.notna(fact_tp_val):
-                    fact_tps.append(fact_tp_val)
+                # Построчно: берём непустые значения (NaN отбрасываются, в знаменатель не попадают)
+                if "План ТП, руб" in zp_sub.columns:
+                    plan_tp_values.extend(zp_sub["План ТП, руб"].dropna().tolist())
+                if "Факт ТП, руб" in zp_sub.columns:
+                    fact_tp_values.extend(zp_sub["Факт ТП, руб"].dropna().tolist())
 
         n = len(plans)
         if n == 0:
@@ -3057,8 +3059,9 @@ class DataVisualizer:
         pf_percent = (round(fact_avg / plan_avg * 100) if plan_avg > 0 else 0)
         ankets = (round(fact_avg / rs_avg) if rs_avg > 0 else 0)
         
-        plan_tp_avg = round(sum(plan_tps) / len(plan_tps)) if plan_tps else 0
-        fact_tp_avg = round(sum(fact_tps) / len(fact_tps)) if fact_tps else 0
+        # Среднее по НЕПУСТЫМ СТРОКАМ (не по месяцам!)
+        plan_tp_avg = round(sum(plan_tp_values) / len(plan_tp_values)) if plan_tp_values else 0
+        fact_tp_avg = round(sum(fact_tp_values) / len(fact_tp_values)) if fact_tp_values else 0
         pf_tp_avg = plan_tp_avg - fact_tp_avg
 
         return {
