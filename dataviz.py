@@ -940,6 +940,8 @@ class DataVisualizer:
                         retro_row['План проекта, шт.'] = kpi['plan_avg']
                         retro_row['Факт проекта, шт.'] = kpi['fact_avg']
                         retro_row['План/Факт проекта,%'] = kpi['pf_percent']
+                        retro_row['RS'] = kpi['rs_count_avg']
+                        retro_row['Кол-во анкет на 1 RS, шт.'] = kpi['ankets_per_rs']
                 rows.append(retro_row)
             
             extended_df = pd.DataFrame(rows)
@@ -959,6 +961,7 @@ class DataVisualizer:
                 'План/Факт на дату,%', 'План/Факт проекта,%',
                 '△План/Факт на дату, шт', '△План/Факт на дату, %',
                 '△План/Факт проекта, шт', '△План/Факт проекта, %',
+                'RS','Кол-во анкет на 1 RS, шт.',
             ]
             
             for c in numeric_cols_ext:
