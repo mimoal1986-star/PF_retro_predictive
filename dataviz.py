@@ -3039,9 +3039,8 @@ class DataVisualizer:
         plans = []
         facts = []
         rs_counts = []
+        durations = []
 
-        # Собираем ВСЕ непустые значения План ТП / Факт ТП по ЗП-строкам
-        # (не суммы по месяцам — именно построчно, для среднего по строкам)
         plan_tp_values = []
         fact_tp_values = []
 
@@ -3056,9 +3055,18 @@ class DataVisualizer:
             facts.append(int((sub["Тип файла"] == "ЗП").sum()))
             rs_counts.append(sub["RS"].dropna().nunique())
             
+            # <-- НОВОЕ: расчет длительности
+            if "Длительность" in sub.columns:
+                durations.extend(sub["Длительность"].dropna().tolist())
+            elif "Дата старта" in sub.columns and "Дата финиша" in sub.columns:
+                start = pd.to_datetime(sub["Дата старта"], errors='coerce')
+                finish = pd.to_datetime(sub["Дата финиша"], errors='coerce')
+                diff = (finish - start).dt.days + 1
+                durations.extend(diff.dropna().tolist())
+            # ---------------------
+
             zp_sub = sub[sub["Тип файла"] == "ЗП"]
             if not zp_sub.empty:
-                # Построчно: берём непустые значения (NaN отбрасываются, в знаменатель не попадают)
                 if "План ТП, руб" in zp_sub.columns:
                     plan_tp_values.extend(zp_sub["План ТП, руб"].dropna().tolist())
                 if "Факт ТП, руб" in zp_sub.columns:
@@ -3070,6 +3078,7 @@ class DataVisualizer:
                 "plan_avg": 0, "fact_avg": 0, "pf_percent": 0,
                 "rs_count_avg": 0, "ankets_per_rs": 0,
                 "plan_tp_avg": 0, "fact_tp_avg": 0, "pf_tp_avg": 0,
+                "duration_avg": 0,
             }
 
         plan_avg = round(sum(plans) / n)
@@ -3078,15 +3087,18 @@ class DataVisualizer:
         pf_percent = (round(fact_avg / plan_avg * 100) if plan_avg > 0 else 0)
         ankets = (round(fact_avg / rs_avg) if rs_avg > 0 else 0)
         
-        # Среднее по НЕПУСТЫМ СТРОКАМ (не по месяцам!)
         plan_tp_avg = round(sum(plan_tp_values) / len(plan_tp_values)) if plan_tp_values else 0
         fact_tp_avg = round(sum(fact_tp_values) / len(fact_tp_values)) if fact_tp_values else 0
         pf_tp_avg = plan_tp_avg - fact_tp_avg
+
+        # <-- НОВОЕ: среднее по длительности
+        duration_avg = round(sum(durations) / len(durations)) if durations else 0
 
         return {
             "plan_avg": plan_avg, "fact_avg": fact_avg, "pf_percent": pf_percent,
             "rs_count_avg": rs_avg, "ankets_per_rs": ankets,
             "plan_tp_avg": plan_tp_avg, "fact_tp_avg": fact_tp_avg, "pf_tp_avg": pf_tp_avg,
+            "duration_avg": duration_avg, 
         }
 
     def _compute_monthly_table_retro(
@@ -3103,6 +3115,7 @@ class DataVisualizer:
             "План ТП, руб": [],
             "Факт ТП, руб": [],
             "ПФ ТП, руб": [],
+            "Длительность": [],  # <-- НОВОЕ
         }
         for y, m in reversed(months):
             sub = df_client_all[
@@ -3119,6 +3132,20 @@ class DataVisualizer:
                 rs_unique = sub["RS"].dropna().nunique()
                 ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
                 
+                # <-- НОВОЕ: Расчет длительности
+                if "Длительность" in sub.columns:
+                    dur_values = sub["Длительность"].dropna().tolist()
+                elif "Дата старта" in sub.columns and "Дата финиша" in sub.columns:
+                    start = pd.to_datetime(sub["Дата старта"], errors='coerce')
+                    finish = pd.to_datetime(sub["Дата финиша"], errors='coerce')
+                    diff = (finish - start).dt.days + 1
+                    dur_values = diff.dropna().tolist()
+                else:
+                    dur_values = []
+                
+                avg_dur = round(sum(dur_values) / len(dur_values)) if dur_values else None
+                # ------------------------------------------
+
                 zp_sub = sub[sub["Тип файла"] == "ЗП"]
                 if not zp_sub.empty:
                     plan_tp = zp_sub["План ТП, руб"].mean() if "План ТП, руб" in zp_sub.columns else None
@@ -3139,6 +3166,7 @@ class DataVisualizer:
                 rows["План ТП, руб"].append(plan_tp)
                 rows["Факт ТП, руб"].append(fact_tp)
                 rows["ПФ ТП, руб"].append(pf_tp)
+                rows["Длительность"].append(avg_dur) # <-- НОВОЕ
 
         columns = [self._month_label(y, m) for y, m in reversed(months)]
         table = pd.DataFrame(rows, index=columns).T
@@ -3436,6 +3464,10 @@ class DataVisualizer:
             tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
             tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
             tk4.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
+
+            # НОВЫЙ Ряд 3 (Длительность)
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("📅 Длительность ср., дн.", f"{kpi.get('duration_avg', 0):,.0f}")
 
             # Кнопки выгрузки (видны всегда)
             col_dl1, col_dl2 = st.columns(2)
