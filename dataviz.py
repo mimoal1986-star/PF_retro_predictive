@@ -3137,7 +3137,6 @@ class DataVisualizer:
         )
         series = df.loc[metric_name]
 
-        # Полный список всех месяцев (включая пустые) — для оси X
         all_months = list(series.index)
         all_months_rev = all_months[::-1]
 
@@ -3146,55 +3145,57 @@ class DataVisualizer:
         })
         chart_data = chart_data.iloc[::-1].reset_index(drop=True)
 
-        if not chart_data.empty:
-            chart_data["Value"] = pd.to_numeric(chart_data["Value"], errors="coerce")
-            chart_data["Цвет"] = chart_data["Value"].apply(
-                lambda v: color_rule(v) if pd.notna(v) else "#E0E0E0"
-            )
+        if chart_data.empty:
+            return
 
-            clean_vals = chart_data["Value"].dropna()
-            if not clean_vals.empty:
-                max_val = clean_vals.max()
-                min_val = clean_vals.min()
-            else:
-                max_val = 1
-                min_val = 0
-            
-            y_upper = max(max_val * 1.2, 1)
-            y_lower = min(min_val * 1.2, 0) if min_val < 0 else 0
+        chart_data["Value"] = pd.to_numeric(chart_data["Value"], errors="coerce")
+        chart_data["Цвет"] = chart_data["Value"].apply(
+            lambda v: color_rule(v) if pd.notna(v) else "#E0E0E0"
+        )
 
-            bars = alt.Chart(chart_data).mark_bar(
-                cornerRadiusTopLeft=2, cornerRadiusTopRight=2,
-            ).encode(
-                x=alt.X(
-                    "Месяц:N",
-                    sort=all_months_rev,
-                    axis=alt.Axis(
-                        labelAngle=0,
-                        labelFont=font,
-                        title=None,
-                        values=all_months_rev,
-                    ),
+        bars = alt.Chart(chart_data).mark_bar(
+            cornerRadiusTopLeft=2, cornerRadiusTopRight=2,
+        ).encode(
+            x=alt.X(
+                "Месяц:N",
+                sort=all_months_rev,
+                axis=alt.Axis(
+                    labelAngle=0,
+                    labelFont=font,
+                    title=None,
+                    values=all_months_rev,
                 ),
-                y=alt.Y(
-                    "Value:Q",
-                    scale=alt.Scale(domain=[y_lower, y_upper]),
-                    axis=alt.Axis(format=".0f", title=y_title, labelFont=font, titleFont=font),
-                ),
-                color=alt.Color("Цвет:N", scale=None, legend=None),
-            )
+            ),
+            y=alt.Y(
+                "Value:Q",
+                scale=alt.Scale(zero=True),
+                axis=alt.Axis(format=".0f", title=y_title, labelFont=font, titleFont=font),
+            ),
+            color=alt.Color("Цвет:N", scale=None, legend=None),
+        )
 
-            text = bars.mark_text(
-                align="center", baseline="bottom", dy=-5,
-                font=font, fontSize=12, color="#333333",
-            ).encode(text=alt.Text("Value:Q", format=".0f" if not is_currency else ",.0f"))
+        text = bars.mark_text(
+            align="center", fontSize=12, color="#333333",
+        ).encode(
+            text=alt.Text("Value:Q", format=".0f" if not is_currency else ",.0f"),
+            baseline=alt.condition(
+                alt.datum.Value >= 0,
+                alt.value("bottom"),
+                alt.value("top"),
+            ),
+            dy=alt.condition(
+                alt.datum.Value >= 0,
+                alt.value(-5),
+                alt.value(5),
+            ),
+        )
 
-            chart = (bars + text).properties(
-                title=alt.TitleParams(text=title, font=font, fontSize=16, anchor="start"),
-                height=400,
-            ).configure_view(strokeWidth=0).configure_axis(grid=False)
+        chart = (bars + text).properties(
+            title=alt.TitleParams(text=title, font=font, fontSize=16, anchor="start"),
+            height=400,
+        ).configure_view(strokeWidth=0).configure_axis(grid=False)
 
-            st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
 
     def _get_quantile_colors(self, series, top_is_violet=True):
         clean_series = series.dropna()
