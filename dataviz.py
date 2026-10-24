@@ -3272,8 +3272,6 @@ class DataVisualizer:
         if df_client_all is None or df_client_all.empty or not months:
             return
 
-        st.markdown("### 🗺️ Тепловая карта ПФ по регионам, %")
-        st.markdown("<br>", unsafe_allow_html=True)
 
         # 1. Получаем список ВСЕХ уникальных регионов клиента (за всё время)
         all_regions = df_client_all["Регион short"].dropna().astype(str).unique()
@@ -3498,9 +3496,28 @@ class DataVisualizer:
                     key="retro_download_dataset_btn"
                 )
 
+
             # Таблица по месяцам — в раскрывающемся списке
             with st.expander("📈 Ключевые показатели по месяцам", expanded=False):
                 st.dataframe(table, use_container_width=True)
+
+            # ============================================
+            # ИИ-АГЕНТ (Сценарий 2: Анализ истории)
+            # ============================================
+            st.markdown("### 🤖 ИИ-Аналитик")
+            st.caption("Нейросеть проанализирует историю и даст рекомендации для нового проекта.")
+            
+            if st.button("✨ Сгенерировать рекомендации", type="primary", key=f"btn_ai_{client}"):
+                with st.spinner("ИИ изучает данные..."):
+                    ai_response = self._generate_ai_recommendations(
+                        client, kpi, table, df_client_all, is_current_project=False
+                    )
+                    st.session_state[f"ai_response_{client}"] = ai_response
+            
+            # Рекомендации в аккордеоне
+            if f"ai_response_{client}" in st.session_state:
+                with st.expander("📝 Рекомендации ИИ", expanded=True):
+                    st.markdown(st.session_state[f"ai_response_{client}"])
 
             # Дашборд — без изменений (всегда виден)
             st.markdown("### 📊 Дашборд")
@@ -3528,26 +3545,10 @@ class DataVisualizer:
                 self._get_quantile_colors(pf_tp_series, True), is_currency=True
             )
             
-            # Тепловая карта по регионам
-            self._render_region_heatmap_retro(df_client_all, months)
-            # ============================================
-            # ИИ-АГЕНТ (Сценарий 2: Анализ истории)
-            # ============================================
-            st.markdown("### 🤖 ИИ-Аналитик")
-            st.caption("Нейросеть проанализирует историю и даст рекомендации для нового проекта.")
-            
-            if st.button("✨ Сгенерировать рекомендации", type="primary", key=f"btn_ai_{client}"):
-                with st.spinner("ИИ изучает данные..."):
-                    ai_response = self._generate_ai_recommendations(
-                        client, kpi, table, df_client_all, is_current_project=False
-                    )
-                    st.session_state[f"ai_response_{client}"] = ai_response
-            
-            if f"ai_response_{client}" in st.session_state:
-                with st.container(border=True):
-                    st.markdown(st.session_state[f"ai_response_{client}"])
 
-            # ============================================
+            # Тепловая карта по регионам — в аккордеоне!
+            with st.expander("🗺️ Тепловая карта ПФ по регионам", expanded=False):
+                self._render_region_heatmap_retro(df_client_all, months)
 
 
     def create_retro_regions_tab(self, df_dataset):
