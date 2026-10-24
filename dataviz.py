@@ -3349,7 +3349,7 @@ class DataVisualizer:
             tk1, tk2, tk3 = st.columns(3)
             tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
             tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
-            tk3.metric("📉 ПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+            tk3.metric("📉 △ПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
 
             st.markdown("### 📈 Ключевые показатели по месяцам")
             st.dataframe(table, use_container_width=True)
