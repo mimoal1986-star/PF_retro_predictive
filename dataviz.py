@@ -3643,15 +3643,33 @@ class DataVisualizer:
             )
 
     def _generate_ai_recommendations(self, client_name, kpi, table):
-        """Генерирует умные рекомендации через GigaChat API"""
+        """Генерирует рекомендации через GigaChat API (с получением токена)"""
         import openai
+        import requests
+        import uuid
         
         if "gigachat" not in st.secrets or "credentials" not in st.secrets["gigachat"]:
             return "⚠️ Ключ API GigaChat не настроен в секретах."
             
-        api_key = st.secrets["gigachat"]["credentials"]
+        auth_key = st.secrets["gigachat"]["credentials"]
 
-        # 1. Формируем контекст (как раньше)
+        # 1. Получаем Access Token
+        try:
+            url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+            payload = "scope=GIGACHAT_API_PERS"
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "RqUID": str(uuid.uuid4()),
+                "Authorization": f"Basic {auth_key}"
+            }
+            token_response = requests.post(url, headers=headers, data=payload, verify=False)
+            token_response.raise_for_status()
+            access_token = token_response.json()["access_token"]
+        except Exception as e:
+            return f"Ошибка получения токена GigaChat: {e}"
+
+        # 2. Формируем контекст
         context = f"Клиент: {client_name}\n"
         context += f"Средний план визитов: {kpi['plan_avg']} шт.\n"
         context += f"Средний факт визитов: {kpi['fact_avg']} шт.\n"
@@ -3664,7 +3682,6 @@ class DataVisualizer:
         context += "\nДанные по месяцам:\n"
         context += table.to_string()
 
-        # 2. Промпт (оставляем без изменений, он хороший)
         prompt = f"""
         Ты — опытный аналитик в сфере тайного покупателя (mystery shopping) и полевых аудитов.
         Проанализируй показатели клиента и выдели ключевые проблемы.
@@ -3683,17 +3700,16 @@ class DataVisualizer:
         Рекомендации (строго маркированный список, 3-4 пункта):
         """
 
+        # 3. Вызываем GigaChat через OpenAI SDK (теперь с токеном)
         try:
-            # 3. Подключаемся к GigaChat через OpenAI SDK
             client = openai.OpenAI(
-                api_key=api_key,
-                base_url="https://api.giga.chat/v1",  # <-- URL GigaChat
-                # Отключаем проверку SSL, иначе будет ошибка сертификата
-                http_client=openai.DefaultHttpxClient(verify=False) 
+                api_key=access_token,  # <-- Передаем ТОКЕН, а не Authorization Key
+                base_url="https://api.giga.chat/v1",
+                http_client=openai.DefaultHttpxClient(verify=False)
             )
             
             response = client.chat.completions.create(
-                model="GigaChat",  # Базовая модель (Lite), самая быстрая и дешевая
+                model="GigaChat",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=600
