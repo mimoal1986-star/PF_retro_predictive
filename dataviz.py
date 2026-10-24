@@ -3174,23 +3174,46 @@ class DataVisualizer:
             color=alt.Color("Цвет:N", scale=None, legend=None),
         )
 
-        text = bars.mark_text(
-            align="center", fontSize=12, color="#333333",
+        text_fmt = ".0f" if not is_currency else ",.0f"
+
+        # Положительные значения: текст НАД столбцом
+        text_pos = alt.Chart(chart_data).mark_text(
+            align="center",
+            baseline="bottom",     # ← здесь, а не в encode
+            dy=-5,
+            fontSize=12,
+            color="#333333",
         ).encode(
-            text=alt.Text("Value:Q", format=".0f" if not is_currency else ",.0f"),
-            baseline=alt.condition(
+            x=alt.X("Месяц:N", sort=all_months_rev),
+            y=alt.Y("Value:Q", scale=alt.Scale(zero=True)),
+            text=alt.Text("Value:Q", format=text_fmt),
+            # Только положительные значения (иначе будет дубль)
+            opacity=alt.condition(
                 alt.datum.Value >= 0,
-                alt.value("bottom"),
-                alt.value("top"),
-            ),
-            dy=alt.condition(
-                alt.datum.Value >= 0,
-                alt.value(-5),
-                alt.value(5),
+                alt.value(1),
+                alt.value(0),
             ),
         )
 
-        chart = (bars + text).properties(
+        # Отрицательные значения: текст НАД столбцом (в сторону 0)
+        text_neg = alt.Chart(chart_data).mark_text(
+            align="center",
+            baseline="top",        # ← здесь
+            dy=5,
+            fontSize=12,
+            color="#333333",
+        ).encode(
+            x=alt.X("Месяц:N", sort=all_months_rev),
+            y=alt.Y("Value:Q", scale=alt.Scale(zero=True)),
+            text=alt.Text("Value:Q", format=text_fmt),
+            opacity=alt.condition(
+                alt.datum.Value < 0,
+                alt.value(1),
+                alt.value(0),
+            ),
+        )
+
+        chart = (bars + text_pos + text_neg).properties(
             title=alt.TitleParams(text=title, font=font, fontSize=16, anchor="start"),
             height=400,
         ).configure_view(strokeWidth=0).configure_axis(grid=False)
