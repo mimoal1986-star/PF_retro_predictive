@@ -753,7 +753,7 @@ class DataVisualizer:
         with col_checkbox2:
             include_prodlenie = st.checkbox("🔄 Продление", key="planfact_include_prodlenie")
         with col_checkbox3:
-            include_retro = st.checkbox("🕰️ Ретро", key="planfact_include_retro")
+            include_retro = st.checkbox("🔄 Ретро", key="planfact_include_retro")
         
         prodata_df = st.session_state.cleaned_data.get('prodata_processed', None)
         
