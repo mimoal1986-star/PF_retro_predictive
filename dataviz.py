@@ -3440,6 +3440,7 @@ class DataVisualizer:
                 table = self._compute_monthly_table_retro(df_client_all, months)
                 st.session_state.analytics_report = {
                     "key": report_key, "empty": False, "kpi": kpi, "table": table,
+                    "months": months,  # <-- СОХРАНЯЕМ МЕСЯЦЫ В КЭШ
                 }
 
         report = st.session_state.get("analytics_report")
