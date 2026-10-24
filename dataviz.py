@@ -3243,19 +3243,19 @@ class DataVisualizer:
         """Тепловая карта ПФ % по регионам и месяцам"""
         if df_client_all is None or df_client_all.empty or not months:
             return
-    
+
         st.markdown("### 🗺️ Тепловая карта ПФ по регионам, %")
         st.markdown("<br>", unsafe_allow_html=True)
-    
+
         # 1. Получаем список ВСЕХ уникальных регионов клиента (за всё время)
         all_regions = df_client_all["Регион short"].dropna().astype(str).unique()
         if len(all_regions) == 0:
             st.info("Нет данных по регионам для построения тепловой карты.")
             return
-    
+
         regions_sorted = sorted(all_regions)
         months_sorted = [self._month_label(y, m) for y, m in months]
-    
+
         # 2. Считаем реальные значения ПФ
         heatmap_data = []
         
@@ -3282,17 +3282,18 @@ class DataVisualizer:
                     "Месяц": month_label,
                     "ПФ, %": round(pf, 1)
                 })
-    
+
         heatmap_df = pd.DataFrame(heatmap_data)
-    
+
         # 3. Отрисовка
         font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    
+
         base = alt.Chart(heatmap_df).encode(
             x=alt.X(
                 "Месяц:N", 
                 sort=months_sorted, 
-                axis=alt.Axis(labelAngle=0, labelFont=font, title=None)
+                # Ось X вверху!
+                axis=alt.Axis(orient='top', labelAngle=0, labelFont=font, title=None)
             ),
             y=alt.Y(
                 "Регион:N", 
@@ -3300,21 +3301,23 @@ class DataVisualizer:
                 axis=alt.Axis(labelFont=font, title=None)
             )
         )
-    
+
         # Прямоугольники (цвет)
+        # Градиент от белого (0) к фиолетовому (100)
         rect = base.mark_rect(cornerRadius=2).encode(
             color=alt.Color(
                 "ПФ, %:Q",
                 scale=alt.Scale(
                     domain=[0, 100],
-                    range=["#F50057", "#FFEB3B", "#6A1B9A"] # Красный -> Желтый -> Фиолетовый
+                    range=["#FFFFFF", "#6A1B9A"] # Белый -> Фиолетовый
                 ),
-                legend=alt.Legend(title="ПФ, %")
+                legend=alt.Legend(title="ПФ, %", orient="right")
             ),
             tooltip=["Регион", "Месяц", "ПФ, %"]
         )
-    
+
         # Текст поверх прямоугольников
+        # Чтобы текст всегда читался: если цвет темный (ПФ > 50), текст белый, иначе темно-серый.
         text = base.mark_text(
             align="center", 
             baseline="middle", 
@@ -3324,16 +3327,16 @@ class DataVisualizer:
         ).encode(
             text=alt.Text("ПФ, %:Q", format=".0f"),
             color=alt.condition(
-                (alt.datum["ПФ, %"] < 35) | (alt.datum["ПФ, %"] > 65),
-                alt.value("white"),
-                alt.value("#333333")
+                alt.datum["ПФ, %"] > 50,
+                alt.value("white"),      # На темно-фиолетовом фоне — белый текст
+                alt.value("#333333")     # На белом/светлом фоне — темный текст
             )
         )
-    
+
         chart = (rect + text).properties(
-            height=max(200, len(regions_sorted) * 35) # Динамическая высота под кол-во регионов
+            height=max(200, len(regions_sorted) * 35) # Динамическая высота
         ).configure_view(strokeWidth=0).configure_axis(grid=False)
-    
+
         st.altair_chart(chart, use_container_width=True)
 
     def _get_quantile_colors(self, series, top_is_violet=True):
