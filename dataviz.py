@@ -3643,14 +3643,15 @@ class DataVisualizer:
             )
 
     def _generate_ai_recommendations(self, client_name, kpi, table):
-        """Генерирует умные рекомендации через DeepSeek API"""
+        """Генерирует умные рекомендации через GigaChat API"""
         import openai
         
-        if "deepseek" not in st.secrets or "api_key" not in st.secrets["deepseek"]:
-            return "⚠️ Ключ API DeepSeek не настроен в секретах."
+        if "gigachat" not in st.secrets or "credentials" not in st.secrets["gigachat"]:
+            return "⚠️ Ключ API GigaChat не настроен в секретах."
             
-        api_key = st.secrets["deepseek"]["api_key"]
+        api_key = st.secrets["gigachat"]["credentials"]
 
+        # 1. Формируем контекст (как раньше)
         context = f"Клиент: {client_name}\n"
         context += f"Средний план визитов: {kpi['plan_avg']} шт.\n"
         context += f"Средний факт визитов: {kpi['fact_avg']} шт.\n"
@@ -3663,6 +3664,7 @@ class DataVisualizer:
         context += "\nДанные по месяцам:\n"
         context += table.to_string()
 
+        # 2. Промпт (оставляем без изменений, он хороший)
         prompt = f"""
         Ты — опытный аналитик в сфере тайного покупателя (mystery shopping) и полевых аудитов.
         Проанализируй показатели клиента и выдели ключевые проблемы.
@@ -3682,19 +3684,23 @@ class DataVisualizer:
         """
 
         try:
+            # 3. Подключаемся к GigaChat через OpenAI SDK
             client = openai.OpenAI(
                 api_key=api_key,
-                base_url="https://api.deepseek.com"
+                base_url="https://api.giga.chat/v1",  # <-- URL GigaChat
+                # Отключаем проверку SSL, иначе будет ошибка сертификата
+                http_client=openai.DefaultHttpxClient(verify=False) 
             )
+            
             response = client.chat.completions.create(
-                model="deepseek-chat",
+                model="GigaChat",  # Базовая модель (Lite), самая быстрая и дешевая
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=600
             )
             return response.choices[0].message.content
         except Exception as e:
-            return f"Ошибка при обращении к DeepSeek: {e}"
+            return f"Ошибка при обращении к GigaChat: {e}"
             
 # Глобальный экземпляр
 dataviz = DataVisualizer()
