@@ -3451,6 +3451,7 @@ class DataVisualizer:
         else:
             kpi = report["kpi"]
             table = report["table"]
+            months = report.get("months", [])
 
             # Ряд 1
             k1, k2, k3, k4 = st.columns(4)
