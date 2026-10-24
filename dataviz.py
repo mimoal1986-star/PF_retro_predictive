@@ -3104,9 +3104,8 @@ class DataVisualizer:
                 if not zp_sub.empty:
                     plan_tp = zp_sub["План ТП, руб"].mean() if "План ТП, руб" in zp_sub.columns else None
                     fact_tp = zp_sub["Факт ТП, руб"].mean() if "Факт ТП, руб" in zp_sub.columns else None
-                    # NaN, если все значения пустые — превращаем в None для чистоты
-                    plan_tp = None if pd.isna(plan_tp) else round(float(plan_tp), 2)
-                    fact_tp = None if pd.isna(fact_tp) else round(float(fact_tp), 2)
+                    plan_tp = None if pd.isna(plan_tp) else round(float(plan_tp))
+                    fact_tp = None if pd.isna(fact_tp) else round(float(fact_tp))
                     pf_tp = (plan_tp - fact_tp) if (plan_tp is not None and fact_tp is not None) else None
                 else:
                     plan_tp = None
