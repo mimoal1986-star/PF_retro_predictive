@@ -3530,21 +3530,25 @@ class DataVisualizer:
             
             # Тепловая карта по регионам
             self._render_region_heatmap_retro(df_client_all, months)
-
             # ============================================
-            # ИИ-АГЕНТ
+            # ИИ-АГЕНТ (Сценарий 2: Анализ истории)
             # ============================================
             st.markdown("### 🤖 ИИ-Аналитик")
-            st.caption("Нейросеть проанализирует цифры и даст рекомендации по проекту.")
+            st.caption("Нейросеть проанализирует историю и даст рекомендации для нового проекта.")
             
             if st.button("✨ Сгенерировать рекомендации", type="primary", key=f"btn_ai_{client}"):
                 with st.spinner("ИИ изучает данные..."):
-                    ai_response = self._generate_ai_recommendations(client, kpi, table)
+                    ai_response = self._generate_ai_recommendations(
+                        client, kpi, table, df_client_all, is_current_project=False
+                    )
                     st.session_state[f"ai_response_{client}"] = ai_response
             
             if f"ai_response_{client}" in st.session_state:
                 with st.container(border=True):
                     st.markdown(st.session_state[f"ai_response_{client}"])
+
+            # ============================================
+
 
     def create_retro_regions_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «Регионы» (в разработке)"""
@@ -3642,18 +3646,19 @@ class DataVisualizer:
                 key="retro_download_export_btn"
             )
 
-    def _generate_ai_recommendations(self, client_name, kpi, table):
-        """Генерирует рекомендации через GigaChat API (с получением токена)"""
+    def _generate_ai_recommendations(self, client_name, kpi, table, df_client_all, is_current_project):
+        """Генерирует умные рекомендации через GigaChat API"""
         import openai
         import requests
         import uuid
         
+        # 1. Проверка ключа
         if "gigachat" not in st.secrets or "credentials" not in st.secrets["gigachat"]:
             return "⚠️ Ключ API GigaChat не настроен в секретах."
             
         auth_key = st.secrets["gigachat"]["credentials"]
 
-        # 1. Получаем Access Token
+        # 2. Получаем Access Token
         try:
             url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
             payload = "scope=GIGACHAT_API_PERS"
@@ -3669,50 +3674,119 @@ class DataVisualizer:
         except Exception as e:
             return f"Ошибка получения токена GigaChat: {e}"
 
-        # 2. Формируем контекст
-        context = f"Клиент: {client_name}\n"
-        context += f"Средний план визитов: {kpi['plan_avg']} шт.\n"
-        context += f"Средний факт визитов: {kpi['fact_avg']} шт.\n"
-        context += f"Выполнение плана (ПФ): {kpi['pf_percent']}%\n"
-        context += f"Средняя длительность проекта: {kpi.get('duration_avg', 0)} дн.\n"
-        context += f"Кол-во анкет на 1 RS: {kpi['ankets_per_rs']} шт.\n"
-        context += f"Средний план ТП (руб): {kpi['plan_tp_avg']}\n"
-        context += f"Средний факт ТП (руб): {kpi['fact_tp_avg']}\n"
-        context += f"Разница ТП: {kpi['pf_tp_avg']} руб.\n"
-        context += "\nДанные по месяцам:\n"
-        context += table.to_string()
+        # 3. Функция сбора статистики (худшие + эталон)
+        def get_stats(df, group_col, top_n=3):
+            if group_col not in df.columns:
+                return [], None
+            
+            stats = []
+            for name, group in df.groupby(group_col):
+                if pd.isna(name) or str(name).strip() == '': continue
+                
+                plan = len(group)
+                fact = int((group["Тип файла"] == "ЗП").sum())
+                pf = (fact / plan * 100) if plan > 0 else 0
+                
+                dur = group["Длительность"].mean() if "Длительность" in group.columns else 0
+                tp_plan = group["План ТП, руб"].mean() if "План ТП, руб" in group.columns else 0
+                
+                stats.append({"name": str(name), "pf": round(pf, 1), "dur": round(dur, 1), "tp": round(tp_plan, 1)})
+            
+            stats.sort(key=lambda x: x['pf'])
+            worst = [s for s in stats if s['pf'] < 80][:top_n]
+            best = stats[-1] if stats else None
+            
+            return worst, best
+
+        # 4. Собираем данные
+        worst_regions, best_region = get_stats(df_client_all, 'Регион short')
+        worst_dsm, _ = get_stats(df_client_all, 'ЗОД')
+        worst_asm, _ = get_stats(df_client_all, 'АСС')
+        worst_rs, _ = get_stats(df_client_all, 'ЭМ')
+
+        # 5. Формируем контекст
+        context = f"=== КЛИЕНТ: {client_name} ===\n"
+        context += f"Средний ПФ по проекту: {kpi['pf_percent']}%\n"
+        context += f"Средняя длительность: {kpi.get('duration_avg', 0)} дн.\n"
+        context += f"Средняя цена (План ТП): {kpi['plan_tp_avg']} руб.\n\n"
+        
+        if best_region:
+            context += f"=== ЭТАЛОН (Лучший регион) ===\n{best_region['name']}: ПФ {best_region['pf']}%, Длит. {best_region['dur']} дн., Цена {best_region['tp']} руб.\n\n"
+
+        if worst_regions:
+            context += "=== ПРОБЛЕМНЫЕ РЕГИОНЫ (ПФ < 80%) ===\n"
+            for r in worst_regions:
+                context += f"{r['name']}: ПФ {r['pf']}%, Длит. {r['dur']} дн., Цена {r['tp']} руб.\n"
+        
+        if worst_dsm:
+            context += "\n=== ПРОБЛЕМНЫЕ DSM ===\n"
+            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_dsm]) + "\n"
+        
+        if worst_asm:
+            context += "\n=== ПРОБЛЕМНЫЕ ASM ===\n"
+            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_asm]) + "\n"
+
+        if worst_rs:
+            context += "\n=== ПРОБЛЕМНЫЕ RS ===\n"
+            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_rs]) + "\n"
+
+        # Примечание, чтобы ИИ не думал, что данные урезаны ошибочно
+        context += "\n(Примечание: регионы, DSM, ASM и RS с ПФ > 80% не указаны, так как не являются проблемными)\n"
+
+        # Динамика по месяцам (берем последние 3 месяца для анализа тренда)
+        context += "\n=== ПОСЛЕДНИЕ МЕСЯЦЫ (Динамика) ===\n"
+        last_3_months = table.iloc[:, -3:]
+        context += last_3_months.to_string()
+
+        # 6. Логика ветвления
+        if is_current_project:
+            role_task = "Ты — антикризисный менеджер. Твоя ЦЕЛЬ — дожать выполнение ТЕКУЩЕГО проекта до 100%."
+            analysis_focus = """
+            АЛГОРИТМ (следуй шагам):
+            1. Посмотри на последние 3 месяца. Идет ли падение ПФ в конце? Если да — это тревожный сигнал.
+            2. Сравни проблемные регионы с эталоном. Если длительность в проблемных регионах НИЖЕ, чем в эталоне → проблема в сжатых сроках. Если цена НИЖЕ → низкая мотивация.
+            3. Если конкретный RS (из списка) постоянно в проблемных — рекомендую заменить его или дать в помощь второго сотрудника.
+            """
+        else:
+            role_task = "Ты — стратегический аудитор. Клиент не в проекте. Твоя ЦЕЛЬ — выявить ошибки прошлого для запуска нового проекта."
+            analysis_focus = """
+            АЛГОРИТМ (следуй шагам):
+            1. Оцени общую картину за весь период.
+            2. Выдели системных «должников» (регионы, RS). Кого стоит заменить или не допускать к новому проекту?
+            3. Проанализируй тренд по месяцам. Если проект стабильно проседал в определенные месяцы — учти это при планировании сроков.
+            4. Дай рекомендации по бюджету и срокам для БУДУЩЕГО проекта, опираясь на лучший регион (эталон).
+            """
 
         prompt = f"""
-        Ты — опытный аналитик в сфере тайного покупателя (mystery shopping) и полевых аудитов.
-        Проанализируй показатели клиента и выдели ключевые проблемы.
+        {role_task}
         
-        Твоя задача — дать 3-4 краткие, конкретные и ДЕЙСТВЕННЫЕ рекомендации (в формате маркированного списка).
-        Опирайся строго на предоставленные цифры. Если данных для вывода нет — не выдумывай.
+        {analysis_focus}
         
-        На что обратить внимание:
-        1. Месяцы с низким выполнением плана (ПФ < 80%).
-        2. Существенная разница между Планом ТП и Фактом ТП.
-        3. Эффективность сотрудников (Кол-во анкет на 1 RS).
+        ФОРМАТ ОТВЕТА (строго без воды):
+        - **Статус:** (Оценка ПФ: ниже/выше нормы)
+        - **Проблемные точки:** (Конкретные регионы/RS и их цифры)
+        - **Причина:** (На основе сравнения длительности, цены и тренда с эталоном)
+        - **Действие:** (Что сделать: продлить сроки, повысить цену, заменить сотрудника и т.д.)
+        
+        ЗАПРЕЩАЕТСЯ: общие фразы про "мотивацию" или "усиление контроля".
         
         Данные:
         {context}
-        
-        Рекомендации (строго маркированный список, 3-4 пункта):
         """
 
-        # 3. Вызываем GigaChat через OpenAI SDK (теперь с токеном)
+        # 7. Вызов GigaChat
         try:
             client = openai.OpenAI(
-                api_key=access_token,  # <-- Передаем ТОКЕН, а не Authorization Key
+                api_key=access_token,
                 base_url="https://api.giga.chat/v1",
                 http_client=openai.DefaultHttpxClient(verify=False)
             )
             
             response = client.chat.completions.create(
-                model="GigaChat-2",
+                model="GigaChat-2-Pro",  # Более умная модель
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=600
+                max_tokens=1500
             )
             return response.choices[0].message.content
         except Exception as e:
