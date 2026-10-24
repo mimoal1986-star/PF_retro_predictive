@@ -3303,13 +3303,12 @@ class DataVisualizer:
         )
 
         # Прямоугольники (цвет)
-        # Градиент от белого (0) к фиолетовому (100)
         rect = base.mark_rect(cornerRadius=2).encode(
             color=alt.Color(
                 "ПФ, %:Q",
                 scale=alt.Scale(
-                    domain=[0, 100],
-                    range=["#FFFFFF", "#6A1B9A"] # Белый -> Фиолетовый
+                    domain=[0, 50, 100],
+                    range=["#F9F9F9", "#C9C0E8", "#7C6BC7"] # Белый -> Светло-фиолетовый -> Пастельный фиолетовый
                 ),
                 legend=alt.Legend(title="ПФ, %", orient="right")
             ),
@@ -3317,7 +3316,6 @@ class DataVisualizer:
         )
 
         # Текст поверх прямоугольников
-        # Чтобы текст всегда читался: если цвет темный (ПФ > 50), текст белый, иначе темно-серый.
         text = base.mark_text(
             align="center", 
             baseline="middle", 
@@ -3328,7 +3326,7 @@ class DataVisualizer:
             text=alt.Text("ПФ, %:Q", format=".0f"),
             color=alt.condition(
                 alt.datum["ПФ, %"] > 50,
-                alt.value("white"),      # На темно-фиолетовом фоне — белый текст
+                alt.value("white"),      # На фиолетовом фоне — белый текст
                 alt.value("#333333")     # На белом/светлом фоне — темный текст
             )
         )
