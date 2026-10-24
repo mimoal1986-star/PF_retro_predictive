@@ -3136,21 +3136,22 @@ class DataVisualizer:
             "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
         )
         series = df.loc[metric_name]
+
+        # Полный список всех месяцев (включая пустые) — для оси X
+        all_months = list(series.index)
+        all_months_rev = all_months[::-1]
+
         chart_data = pd.DataFrame({
             "Месяц": series.index, "Value": series.values
         })
-        # НЕ dropna — сохраняем все месяцы (пустые останутся пустыми на графике)
         chart_data = chart_data.iloc[::-1].reset_index(drop=True)
 
         if not chart_data.empty:
-            # Числовые значения (NaN остаётся NaN — Altair не нарисует столбец)
             chart_data["Value"] = pd.to_numeric(chart_data["Value"], errors="coerce")
-            # Цвет только для непустых
             chart_data["Цвет"] = chart_data["Value"].apply(
                 lambda v: color_rule(v) if pd.notna(v) else "#E0E0E0"
             )
 
-            # Границы Y — по непустым значениям
             clean_vals = chart_data["Value"].dropna()
             if not clean_vals.empty:
                 max_val = clean_vals.max()
@@ -3166,8 +3167,14 @@ class DataVisualizer:
                 cornerRadiusTopLeft=2, cornerRadiusTopRight=2,
             ).encode(
                 x=alt.X(
-                    "Месяц:N", sort=None,
-                    axis=alt.Axis(labelAngle=0, labelFont=font, title=None),
+                    "Месяц:N",
+                    sort=all_months_rev,
+                    axis=alt.Axis(
+                        labelAngle=0,
+                        labelFont=font,
+                        title=None,
+                        values=all_months_rev,
+                    ),
                 ),
                 y=alt.Y(
                     "Value:Q",
