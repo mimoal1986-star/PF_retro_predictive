@@ -3339,31 +3339,38 @@ class DataVisualizer:
             tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
             tk4.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
 
-            st.markdown("### 📈 Ключевые показатели по месяцам")
-            st.dataframe(table, use_container_width=True)
+            # Кнопки выгрузки (видны всегда)
+            col_dl1, col_dl2 = st.columns(2)
+            
+            with col_dl1:
+                excel_buffer = BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                    table.to_excel(writer, sheet_name="Ключевые показатели")
+                st.download_button(
+                    "📥 Выгрузить KPI в Excel",
+                    data=excel_buffer.getvalue(),
+                    file_name=f"kpi_{client}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="retro_download_kpi_btn"
+                )
+            
+            with col_dl2:
+                dataset_buffer = BytesIO()
+                with pd.ExcelWriter(dataset_buffer, engine="openpyxl") as writer:
+                    df_client_all.to_excel(writer, index=False, sheet_name="Датасет")
+                st.download_button(
+                    "📥 Выгрузить датасет",
+                    data=dataset_buffer.getvalue(),
+                    file_name=f"dataset_{client}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="retro_download_dataset_btn"
+                )
 
-            excel_buffer = BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                table.to_excel(writer, sheet_name="Ключевые показатели")
-            st.download_button(
-                "📥 Выгрузить в Excel",
-                data=excel_buffer.getvalue(),
-                file_name=f"kpi_{client}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="retro_download_kpi_btn"
-            )
+            # Таблица по месяцам — в раскрывающемся списке
+            with st.expander("📈 Ключевые показатели по месяцам", expanded=False):
+                st.dataframe(table, use_container_width=True)
 
-            dataset_buffer = BytesIO()
-            with pd.ExcelWriter(dataset_buffer, engine="openpyxl") as writer:
-                df_client_all.to_excel(writer, index=False, sheet_name="Датасет")
-            st.download_button(
-                "📥 Выгрузить датасет (все строки клиента)",
-                data=dataset_buffer.getvalue(),
-                file_name=f"dataset_{client}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="retro_download_dataset_btn"
-            )
-
+            # Дашборд — без изменений (всегда виден)
             st.markdown("### 📊 Дашборд")
             st.markdown("<br>", unsafe_allow_html=True)
 
