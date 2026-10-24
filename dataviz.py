@@ -3339,17 +3339,19 @@ class DataVisualizer:
             kpi = report["kpi"]
             table = report["table"]
 
-            k1, k2, k3, k4, k5 = st.columns(5)
+            # Ряд 1
+            k1, k2, k3, k4 = st.columns(4)
             k1.metric("📊 План ср., шт", f"{kpi['plan_avg']:,}")
             k2.metric("✅ Факт ср., шт", f"{kpi['fact_avg']:,}")
             k3.metric("🎯 ПФ ср., %", f"{kpi['pf_percent']}%")
             k4.metric("👥 Кол-во RS ср., чел.", f"{kpi['rs_count_avg']:,}")
-            k5.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
             
-            tk1, tk2, tk3 = st.columns(3)
+            # Ряд 2
+            tk1, tk2, tk3, tk4 = st.columns(4)
             tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
             tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
-            tk3.metric("📉 △ПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+            tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+            tk4.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
 
             st.markdown("### 📈 Ключевые показатели по месяцам")
             st.dataframe(table, use_container_width=True)
