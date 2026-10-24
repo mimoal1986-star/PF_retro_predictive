@@ -3206,83 +3206,6 @@ class DataVisualizer:
             st.info("Нет данных для отображения.")
             return
 
-        st.markdown("### 📥 Выгрузка датасета")
-        col_f1, col_f2 = st.columns(2)
-        
-        with col_f1:
-            pairs = sorted(set(
-                (int(y), int(m)) for y, m in df_dataset[["Год", "Месяц"]]
-                .dropna().itertuples(index=False, name=None)
-            ))
-            
-            period_opts = []
-            if pairs:
-                y_min, m_min = pairs[0]
-                y_max, m_max = pairs[-1]
-                
-                y, m = y_min, m_min
-                while (y, m) <= (y_max, m_max):
-                    period_opts.append(f"{m:02d}.{y}")
-                    if m == 12:
-                        y, m = y + 1, 1
-                    else:
-                        m += 1
-            
-            period_selected = st.multiselect(
-                "Выберите месяцы для выгрузки",
-                options=period_opts,
-                default=period_opts[-3:] if len(period_opts) >= 3 else period_opts,
-                key="retro_export_period"
-            )
-        
-        with col_f2:
-            all_clients = sorted(df_dataset["Клиент"].dropna().unique().astype(str).tolist())
-            clients_selected = st.multiselect(
-                "Выберите клиентов для выгрузки",
-                options=all_clients,
-                default=[],
-                key="retro_export_clients"
-            )
-
-        if st.button("📥 Сформировать Excel для выгрузки", type="primary", key="retro_build_export_btn"):
-            df_export = df_dataset.copy()
-            
-            if period_selected:
-                parsed_periods = set()
-                for p in period_selected:
-                    mm, yyyy = p.split(".")
-                    parsed_periods.add(int(yyyy) * 100 + int(mm))
-                
-                ym = (
-                    df_export["Год"].astype("int64") * 100
-                    + df_export["Месяц"].astype("int64")
-                )
-                df_export = df_export[ym.isin(parsed_periods)]
-                
-            if clients_selected:
-                df_export = df_export[df_export["Клиент"].isin(clients_selected)]
-                
-            if df_export.empty:
-                st.warning("По выбранным фильтрам данных нет.")
-            else:
-                export_buffer = BytesIO()
-                with pd.ExcelWriter(export_buffer, engine="openpyxl") as writer:
-                    df_export.to_excel(writer, index=False, sheet_name="Данные")
-                
-                st.session_state.analytics_export_bytes = export_buffer.getvalue()
-                st.session_state.analytics_export_rows = len(df_export)
-        
-        if st.session_state.get("analytics_export_bytes"):
-            st.success(f"Файл готов ({st.session_state.analytics_export_rows} строк)")
-            st.download_button(
-                "Скачать Excel",
-                data=st.session_state.analytics_export_bytes,
-                file_name="dataset_export.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="retro_download_export_btn"
-            )
-        st.markdown("---")
-
         clients = sorted(
             df_dataset["Клиент"].dropna().unique().astype(str).tolist()
         )
@@ -3414,6 +3337,90 @@ class DataVisualizer:
     def create_retro_summary_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «Сводный» (в разработке)"""
         st.info("В разработке.")
-    
+
+    def create_retro_export_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «Выгрузка датасета»"""
+        if df_dataset is None or df_dataset.empty:
+            st.info("Нет данных для выгрузки. Загрузите Parquet на вкладке «Загрузка данных».")
+            return
+
+        st.markdown("### 📥 Выгрузка датасета")
+        st.caption("Выберите месяцы и клиентов, затем сформируйте Excel-файл.")
+        
+        col_f1, col_f2 = st.columns(2)
+        
+        with col_f1:
+            pairs = sorted(set(
+                (int(y), int(m)) for y, m in df_dataset[["Год", "Месяц"]]
+                .dropna().itertuples(index=False, name=None)
+            ))
+            
+            period_opts = []
+            if pairs:
+                y_min, m_min = pairs[0]
+                y_max, m_max = pairs[-1]
+                
+                y, m = y_min, m_min
+                while (y, m) <= (y_max, m_max):
+                    period_opts.append(f"{m:02d}.{y}")
+                    if m == 12:
+                        y, m = y + 1, 1
+                    else:
+                        m += 1
+            
+            period_selected = st.multiselect(
+                "Выберите месяцы для выгрузки",
+                options=period_opts,
+                default=period_opts[-3:] if len(period_opts) >= 3 else period_opts,
+                key="retro_export_period"
+            )
+        
+        with col_f2:
+            all_clients = sorted(df_dataset["Клиент"].dropna().unique().astype(str).tolist())
+            clients_selected = st.multiselect(
+                "Выберите клиентов для выгрузки",
+                options=all_clients,
+                default=[],
+                key="retro_export_clients"
+            )
+
+        if st.button("📥 Сформировать Excel для выгрузки", type="primary", key="retro_build_export_btn"):
+            df_export = df_dataset.copy()
+            
+            if period_selected:
+                parsed_periods = set()
+                for p in period_selected:
+                    mm, yyyy = p.split(".")
+                    parsed_periods.add(int(yyyy) * 100 + int(mm))
+                
+                ym = (
+                    df_export["Год"].astype("int64") * 100
+                    + df_export["Месяц"].astype("int64")
+                )
+                df_export = df_export[ym.isin(parsed_periods)]
+                
+            if clients_selected:
+                df_export = df_export[df_export["Клиент"].isin(clients_selected)]
+                
+            if df_export.empty:
+                st.warning("По выбранным фильтрам данных нет.")
+            else:
+                export_buffer = BytesIO()
+                with pd.ExcelWriter(export_buffer, engine="openpyxl") as writer:
+                    df_export.to_excel(writer, index=False, sheet_name="Данные")
+                
+                st.session_state.analytics_export_bytes = export_buffer.getvalue()
+                st.session_state.analytics_export_rows = len(df_export)
+        
+        if st.session_state.get("analytics_export_bytes"):
+            st.success(f"Файл готов ({st.session_state.analytics_export_rows} строк)")
+            st.download_button(
+                "Скачать Excel",
+                data=st.session_state.analytics_export_bytes,
+                file_name="dataset_export.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="retro_download_export_btn"
+            )
+            
 # Глобальный экземпляр
 dataviz = DataVisualizer()
