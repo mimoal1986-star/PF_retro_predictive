@@ -3239,6 +3239,103 @@ class DataVisualizer:
 
         st.altair_chart(chart, use_container_width=True)
 
+    def _render_region_heatmap_retro(self, df_client_all, months):
+        """Тепловая карта ПФ % по регионам и месяцам"""
+        if df_client_all is None or df_client_all.empty or not months:
+            return
+    
+        st.markdown("### 🗺️ Тепловая карта ПФ по регионам, %")
+        st.markdown("<br>", unsafe_allow_html=True)
+    
+        # 1. Получаем список ВСЕХ уникальных регионов клиента (за всё время)
+        all_regions = df_client_all["Регион short"].dropna().astype(str).unique()
+        if len(all_regions) == 0:
+            st.info("Нет данных по регионам для построения тепловой карты.")
+            return
+    
+        regions_sorted = sorted(all_regions)
+        months_sorted = [self._month_label(y, m) for y, m in months]
+    
+        # 2. Считаем реальные значения ПФ
+        heatmap_data = []
+        
+        for y, m in months:
+            sub = df_client_all[
+                (df_client_all["Год"] == y)
+                & (df_client_all["Месяц"] == m)
+            ]
+            
+            month_label = self._month_label(y, m)
+            
+            for reg in regions_sorted:
+                reg_sub = sub[sub["Регион short"].astype(str) == reg]
+                
+                if reg_sub.empty:
+                    pf = 0.0
+                else:
+                    plan = len(reg_sub)
+                    fact = int((reg_sub["Тип файла"] == "ЗП").sum())
+                    pf = (fact / plan * 100) if plan > 0 else 0.0
+                
+                heatmap_data.append({
+                    "Регион": reg,
+                    "Месяц": month_label,
+                    "ПФ, %": round(pf, 1)
+                })
+    
+        heatmap_df = pd.DataFrame(heatmap_data)
+    
+        # 3. Отрисовка
+        font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    
+        base = alt.Chart(heatmap_df).encode(
+            x=alt.X(
+                "Месяц:N", 
+                sort=months_sorted, 
+                axis=alt.Axis(labelAngle=0, labelFont=font, title=None)
+            ),
+            y=alt.Y(
+                "Регион:N", 
+                sort=regions_sorted, 
+                axis=alt.Axis(labelFont=font, title=None)
+            )
+        )
+    
+        # Прямоугольники (цвет)
+        rect = base.mark_rect(cornerRadius=2).encode(
+            color=alt.Color(
+                "ПФ, %:Q",
+                scale=alt.Scale(
+                    domain=[0, 100],
+                    range=["#F50057", "#FFEB3B", "#6A1B9A"] # Красный -> Желтый -> Фиолетовый
+                ),
+                legend=alt.Legend(title="ПФ, %")
+            ),
+            tooltip=["Регион", "Месяц", "ПФ, %"]
+        )
+    
+        # Текст поверх прямоугольников
+        text = base.mark_text(
+            align="center", 
+            baseline="middle", 
+            font=font, 
+            fontSize=14,
+            dy=1
+        ).encode(
+            text=alt.Text("ПФ, %:Q", format=".0f"),
+            color=alt.condition(
+                (alt.datum["ПФ, %"] < 35) | (alt.datum["ПФ, %"] > 65),
+                alt.value("white"),
+                alt.value("#333333")
+            )
+        )
+    
+        chart = (rect + text).properties(
+            height=max(200, len(regions_sorted) * 35) # Динамическая высота под кол-во регионов
+        ).configure_view(strokeWidth=0).configure_axis(grid=False)
+    
+        st.altair_chart(chart, use_container_width=True)
+
     def _get_quantile_colors(self, series, top_is_violet=True):
         clean_series = series.dropna()
         if clean_series.empty or clean_series.min() == clean_series.max():
@@ -3395,6 +3492,9 @@ class DataVisualizer:
                 table, "ПФ ТП, руб", "ПФ ТП, руб", "ПФ ТП, руб",
                 self._get_quantile_colors(pf_tp_series, True), is_currency=True
             )
+            
+            # Тепловая карта по регионам
+            self._render_region_heatmap_retro(df_client_all, months)
 
     def create_retro_regions_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «Регионы» (в разработке)"""
