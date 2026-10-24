@@ -3529,6 +3529,21 @@ class DataVisualizer:
             # Тепловая карта по регионам
             self._render_region_heatmap_retro(df_client_all, months)
 
+            # ============================================
+            # ИИ-АГЕНТ
+            # ============================================
+            st.markdown("### 🤖 ИИ-Аналитик")
+            st.caption("Нейросеть проанализирует цифры и даст рекомендации по проекту.")
+            
+            if st.button("✨ Сгенерировать рекомендации", type="primary", key=f"btn_ai_{client}"):
+                with st.spinner("ИИ изучает данные..."):
+                    ai_response = self._generate_ai_recommendations(client, kpi, table)
+                    st.session_state[f"ai_response_{client}"] = ai_response
+            
+            if f"ai_response_{client}" in st.session_state:
+                with st.container(border=True):
+                    st.markdown(st.session_state[f"ai_response_{client}"])
+
     def create_retro_regions_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «Регионы» (в разработке)"""
         st.info("В разработке.")
@@ -3624,6 +3639,60 @@ class DataVisualizer:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="retro_download_export_btn"
             )
+
+    def _generate_ai_recommendations(self, client_name, kpi, table):
+        """Генерирует умные рекомендации через DeepSeek API"""
+        import openai
+        
+        if "deepseek" not in st.secrets or "api_key" not in st.secrets["deepseek"]:
+            return "⚠️ Ключ API DeepSeek не настроен в секретах."
+            
+        api_key = st.secrets["deepseek"]["api_key"]
+
+        context = f"Клиент: {client_name}\n"
+        context += f"Средний план визитов: {kpi['plan_avg']} шт.\n"
+        context += f"Средний факт визитов: {kpi['fact_avg']} шт.\n"
+        context += f"Выполнение плана (ПФ): {kpi['pf_percent']}%\n"
+        context += f"Средняя длительность проекта: {kpi.get('duration_avg', 0)} дн.\n"
+        context += f"Кол-во анкет на 1 RS: {kpi['ankets_per_rs']} шт.\n"
+        context += f"Средний план ТП (руб): {kpi['plan_tp_avg']}\n"
+        context += f"Средний факт ТП (руб): {kpi['fact_tp_avg']}\n"
+        context += f"Разница ТП: {kpi['pf_tp_avg']} руб.\n"
+        context += "\nДанные по месяцам:\n"
+        context += table.to_string()
+
+        prompt = f"""
+        Ты — опытный аналитик в сфере тайного покупателя (mystery shopping) и полевых аудитов.
+        Проанализируй показатели клиента и выдели ключевые проблемы.
+        
+        Твоя задача — дать 3-4 краткие, конкретные и ДЕЙСТВЕННЫЕ рекомендации (в формате маркированного списка).
+        Опирайся строго на предоставленные цифры. Если данных для вывода нет — не выдумывай.
+        
+        На что обратить внимание:
+        1. Месяцы с низким выполнением плана (ПФ < 80%).
+        2. Существенная разница между Планом ТП и Фактом ТП.
+        3. Эффективность сотрудников (Кол-во анкет на 1 RS).
+        
+        Данные:
+        {context}
+        
+        Рекомендации (строго маркированный список, 3-4 пункта):
+        """
+
+        try:
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url="https://api.deepseek.com"
+            )
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=600
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Ошибка при обращении к DeepSeek: {e}"
             
 # Глобальный экземпляр
 dataviz = DataVisualizer()
