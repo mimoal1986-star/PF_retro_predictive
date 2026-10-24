@@ -1297,8 +1297,8 @@ with tab3:
         st.info("📌 Загрузите Parquet-файл (report_data.parquet) на вкладке «Загрузка данных»")
 
     else:
-        tab_retro_clients, tab_retro_regions, tab_retro_dsm, tab_retro_summary = st.tabs(
-            ["👥 Клиенты", "🗺️ Регионы", "👤 DSM", "📊 Сводный"]
+        tab_retro_clients, tab_retro_regions, tab_retro_dsm, tab_retro_summary, tab_retro_export = st.tabs(
+            ["👥 Клиенты", "🗺️ Регионы", "👤 DSM", "📊 Сводный", "📥 Выгрузка"]
         )
 
         with tab_retro_clients:
@@ -1312,6 +1312,9 @@ with tab3:
 
         with tab_retro_summary:
             dataviz.create_retro_summary_tab(df_analytics)
+
+        with tab_retro_export:
+            dataviz.create_retro_export_tab(df_analytics)
 
 # ==============================================
 # ВКЛАДКА 4: НАСТРОЙКИ ПРОЕКТОВ (было tab3)
