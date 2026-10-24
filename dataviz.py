@@ -737,11 +737,13 @@ class DataVisualizer:
         # KPI
         st.markdown("### 📊 Ключевые показатели")
         
-        col_kpi1, col_kpi2, col_kpi3, col_checkbox1, col_checkbox2 = st.columns([1, 1, 1, 0.35, 0.35])
+        col_kpi1, col_kpi2, col_kpi3, col_checkbox1, col_checkbox2, col_checkbox3 = st.columns([1, 1, 1, 0.3, 0.3, 0.3])
         with col_checkbox1:
             include_prodata = st.checkbox("📊 Продата", key="planfact_include_prodata")
         with col_checkbox2:
             include_prodlenie = st.checkbox("🔄 Продление", key="planfact_include_prodlenie")
+        with col_checkbox3:
+            include_retro = st.checkbox("🕰️ Ретро", key="planfact_include_retro")
         
         prodata_df = st.session_state.cleaned_data.get('prodata_processed', None)
         
@@ -803,157 +805,212 @@ class DataVisualizer:
             st.metric("🔮 Прогноз ВП, %", f"{forecast_percent:.1f}%")
         
         # ============================================
-        # 5. РЕТРО-ДАННЫЕ (справочно)
+        # 5. ОТОБРАЖЕНИЕ
         # ============================================
         
-        analytics_df = st.session_state.get('analytics_df')
-        retro_available = analytics_df is not None and not analytics_df.empty
-        
-        # Один раз группируем analytics_df по нормализованному клиенту
-        retro_by_client = {}
-        if retro_available and 'Клиент' in analytics_df.columns:
-            analytics_df_norm = analytics_df.copy()
-            analytics_df_norm['_client_norm'] = analytics_df_norm['Клиент'].astype(str).str.strip()
-            retro_by_client = {k: v for k, v in analytics_df_norm.groupby('_client_norm')}
-        
-        # ============================================
-        # 6. СБОРКА РАСШИРЕННОГО DATAFRAME
-        # ============================================
-        
-        project_data_sorted = project_data.copy()
-        
-        rows = []
-        
-        for _, current_row in project_data_sorted.iterrows():
-            client_name = str(current_row['Клиент']).strip()
+        if not include_retro:
+            # ============================================
+            # ДЕФОЛТНЫЙ РЕЖИМ (без ретро)
+            # ============================================
             
-            # 1. Строка 'текущий'
-            current_dict = current_row.to_dict()
-            current_dict['Клиент'] = client_name
-            current_dict['Период'] = 'текущий'
-            rows.append(current_dict)
+            display_cols = ['Клиент']
             
-            # 2. Строка 'ретро'
-            retro_row = {c: None for c in current_row.index}
-            retro_row['Клиент'] = ''
-            retro_row['Период'] = 'ретро'
+            if show_project and 'Проект' in project_data.columns:
+                display_cols.append('Проект')
+            if show_wave and 'Волна' in project_data.columns:
+                display_cols.append('Волна')
+            if show_regions and region_col in project_data.columns:
+                display_cols.append(region_col)
+            if show_dsm and 'DSM' in project_data.columns:
+                display_cols.append('DSM')
+            if show_asm and 'ASM' in project_data.columns:
+                display_cols.append('ASM')
+            if show_rs and 'RS' in project_data.columns:
+                display_cols.append('RS')
+            if show_po and 'ПО' in project_data.columns:
+                display_cols.append('ПО')
             
-            client_retro_df = retro_by_client.get(client_name)
+            always_show = [
+                'План проекта, шт.', 
+                'Факт проекта, шт.',
+                'План на дату, шт.',
+                'Факт на дату, шт.',
+                'План/Факт проекта,%',
+                '△План/Факт проекта, шт',
+                '△План/Факт проекта, %',
+                'План/Факт на дату,%',
+                '△План/Факт на дату, шт',
+                '△План/Факт на дату, %',
+                'Фокус',
+                'Прогноз на месяц, шт.',
+                'Длительность',
+                'Дней до конца проекта',
+                'Утилизация тайминга, %',
+                'Ср. план на день для 100% плана',
+                'Метод подбора дат',
+                'Оплата план',
+                'Оплата план средн., руб.',
+                'Оплата факт средн., руб.',
+                'Оплата план-факт средн., руб.',
+                'Оплата факт/план средн., %',
+                'Оплата средн. в динамике, руб.',
+                'Оплата средн. прогноз, руб.',
+                'Оплата поручено средн., руб.',
+                'Факт проекта_поручено, шт.',
+                'Факт проекта_не_поручено, шт.' 
+            ]
             
-            if client_retro_df is not None and not client_retro_df.empty:
-                pairs = sorted(set(
-                    (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
-                    .dropna().itertuples(index=False, name=None)
-                ))
+            for col in always_show:
+                if col in project_data.columns:
+                    display_cols.append(col)
+            
+            existing_display = [c for c in display_cols if c in project_data.columns]
+            
+            st.dataframe(project_data[existing_display], use_container_width=True, hide_index=True)
+        
+        else:
+            # ============================================
+            # РЕЖИМ С РЕТРО
+            # ============================================
+            
+            analytics_df = st.session_state.get('analytics_df')
+            retro_available = analytics_df is not None and not analytics_df.empty
+            
+            # Один раз группируем analytics_df по нормализованному клиенту
+            retro_by_client = {}
+            if retro_available and 'Клиент' in analytics_df.columns:
+                analytics_df_norm = analytics_df.copy()
+                analytics_df_norm['_client_norm'] = analytics_df_norm['Клиент'].astype(str).str.strip()
+                retro_by_client = {k: v for k, v in analytics_df_norm.groupby('_client_norm')}
+            
+            project_data_sorted = project_data.copy()
+            
+            rows = []
+            
+            for _, current_row in project_data_sorted.iterrows():
+                client_name = str(current_row['Клиент']).strip()
                 
-                if pairs:
-                    y_min, m_min = pairs[0]
-                    y_max, m_max = pairs[-1]
-                    months_list = []
-                    y, m = y_min, m_min
-                    while (y, m) <= (y_max, m_max):
-                        months_list.append((y, m))
-                        if m == 12:
-                            y, m = y + 1, 1
-                        else:
-                            m += 1
-                else:
-                    months_list = []
+                # 1. Строка 'текущий'
+                current_dict = current_row.to_dict()
+                current_dict['Клиент'] = client_name
+                current_dict['Период'] = 'текущий'
+                rows.append(current_dict)
                 
-                if months_list:
-                    kpi = self._compute_kpi_retro(client_retro_df, months_list)
-                    retro_row['План проекта, шт.'] = kpi['plan_avg']
-                    retro_row['Факт проекта, шт.'] = kpi['fact_avg']
-                    retro_row['План/Факт проекта,%'] = kpi['pf_percent']
-            rows.append(retro_row)
-        
-        extended_df = pd.DataFrame(rows)
+                # 2. Строка 'ретро'
+                retro_row = {c: None for c in current_row.index}
+                retro_row['Клиент'] = ''
+                retro_row['Период'] = 'ретро'
+                
+                client_retro_df = retro_by_client.get(client_name)
+                
+                if client_retro_df is not None and not client_retro_df.empty:
+                    pairs = sorted(set(
+                        (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
+                        .dropna().itertuples(index=False, name=None)
+                    ))
+                    
+                    if pairs:
+                        y_min, m_min = pairs[0]
+                        y_max, m_max = pairs[-1]
+                        months_list = []
+                        y, m = y_min, m_min
+                        while (y, m) <= (y_max, m_max):
+                            months_list.append((y, m))
+                            if m == 12:
+                                y, m = y + 1, 1
+                            else:
+                                m += 1
+                    else:
+                        months_list = []
+                    
+                    if months_list:
+                        kpi = self._compute_kpi_retro(client_retro_df, months_list)
+                        retro_row['План проекта, шт.'] = kpi['plan_avg']
+                        retro_row['Факт проекта, шт.'] = kpi['fact_avg']
+                        retro_row['План/Факт проекта,%'] = kpi['pf_percent']
+                rows.append(retro_row)
+            
+            extended_df = pd.DataFrame(rows)
+            
+            # Нормализация ТОЛЬКО числовых колонок (даты не трогаем!)
+            numeric_cols_ext = [
+                'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
+                'Длительность', 'Коэффициент месяца', 'Дней до конца проекта', 'Прогноз, шт.',
+                'Утилизация тайминга, %',
+                'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
+                'Оплата факт средн., руб.', 'Клиент_длительность',
+                'Продление',
+                'Прогноз, шт', 'Прогноз ВП, %',
+                'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
+                'Оплата поручено средн., руб.',
+                'Ср. план на день для 100% плана',
+                'План/Факт на дату,%', 'План/Факт проекта,%',
+                '△План/Факт на дату, шт', '△План/Факт на дату, %',
+                '△План/Факт проекта, шт', '△План/Факт проекта, %',
+            ]
+            
+            for c in numeric_cols_ext:
+                if c in extended_df.columns:
+                    extended_df[c] = pd.to_numeric(extended_df[c], errors='coerce')
+            
+            # Порядок колонок: Клиент | Период | развертки | always_show
+            display_cols = ['Клиент', 'Период']
+            
+            if show_project and 'Проект' in extended_df.columns:
+                display_cols.append('Проект')
+            if show_wave and 'Волна' in extended_df.columns:
+                display_cols.append('Волна')
+            if show_regions and region_col in extended_df.columns:
+                display_cols.append(region_col)
+            if show_dsm and 'DSM' in extended_df.columns:
+                display_cols.append('DSM')
+            if show_asm and 'ASM' in extended_df.columns:
+                display_cols.append('ASM')
+            if show_rs and 'RS' in extended_df.columns:
+                display_cols.append('RS')
+            if show_po and 'ПО' in extended_df.columns:
+                display_cols.append('ПО')
+            
+            always_show = [
+                'План проекта, шт.', 
+                'Факт проекта, шт.',
+                'План на дату, шт.',
+                'Факт на дату, шт.',
+                'План/Факт проекта,%',
+                '△План/Факт проекта, шт',
+                '△План/Факт проекта, %',
+                'План/Факт на дату,%',
+                '△План/Факт на дату, шт',
+                '△План/Факт на дату, %',
+                'Фокус',
+                'Прогноз на месяц, шт.',
+                'Длительность',
+                'Дней до конца проекта',
+                'Утилизация тайминга, %',
+                'Ср. план на день для 100% плана',
+                'Метод подбора дат',
+                'Оплата план',
+                'Оплата план средн., руб.',
+                'Оплата факт средн., руб.',
+                'Оплата план-факт средн., руб.',
+                'Оплата факт/план средн., %',
+                'Оплата средн. в динамике, руб.',
+                'Оплата средн. прогноз, руб.',
+                'Оплата поручено средн., руб.',
+                'Факт проекта_поручено, шт.',
+                'Факт проекта_не_поручено, шт.' 
+            ]
+            
+            for col in always_show:
+                if col in extended_df.columns:
+                    display_cols.append(col)
+            
+            existing_display = [c for c in display_cols if c in extended_df.columns]
+            
+            st.dataframe(extended_df[existing_display], use_container_width=True, hide_index=True)
         
         # ============================================
-        # П1: нормализация ТОЛЬКО числовых колонок (даты не трогаем!)
-        # ============================================
-        
-        numeric_cols_ext = [
-            'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
-            'Длительность', 'Коэффициент месяца', 'Дней до конца проекта', 'Прогноз, шт.',
-            'Утилизация тайминга, %',
-            'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
-            'Оплата факт средн., руб.', 'Клиент_длительность',
-            'Продление',
-            'Прогноз, шт', 'Прогноз ВП, %',
-            'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
-            'Оплата поручено средн., руб.',
-            'Ср. план на день для 100% плана',
-            'План/Факт на дату,%', 'План/Факт проекта,%',
-            '△План/Факт на дату, шт', '△План/Факт на дату, %',
-            '△План/Факт проекта, шт', '△План/Факт проекта, %',
-        ]
-        
-        for c in numeric_cols_ext:
-            if c in extended_df.columns:
-                extended_df[c] = pd.to_numeric(extended_df[c], errors='coerce')
-        
-        # ============================================
-        # 7. ОТОБРАЖЕНИЕ — порядок колонок как в старой версии + 'Период'
-        # ============================================
-        
-        display_cols = ['Клиент', 'Период']
-        
-        if show_project and 'Проект' in extended_df.columns:
-            display_cols.append('Проект')
-        if show_wave and 'Волна' in extended_df.columns:
-            display_cols.append('Волна')
-        if show_regions and region_col in extended_df.columns:
-            display_cols.append(region_col)
-        if show_dsm and 'DSM' in extended_df.columns:
-            display_cols.append('DSM')
-        if show_asm and 'ASM' in extended_df.columns:
-            display_cols.append('ASM')
-        if show_rs and 'RS' in extended_df.columns:
-            display_cols.append('RS')
-        if show_po and 'ПО' in extended_df.columns:
-            display_cols.append('ПО')
-        
-        always_show = [
-            'План проекта, шт.', 
-            'Факт проекта, шт.',
-            'План на дату, шт.',
-            'Факт на дату, шт.',
-            'План/Факт проекта,%',
-            '△План/Факт проекта, шт',
-            '△План/Факт проекта, %',
-            'План/Факт на дату,%',
-            '△План/Факт на дату, шт',
-            '△План/Факт на дату, %',
-            'Фокус',
-            'Прогноз на месяц, шт.',
-            'Длительность',
-            'Дней до конца проекта',
-            'Утилизация тайминга, %',
-            'Ср. план на день для 100% плана',
-            'Метод подбора дат',
-            'Оплата план',
-            'Оплата план средн., руб.',
-            'Оплата факт средн., руб.',
-            'Оплата план-факт средн., руб.',
-            'Оплата факт/план средн., %',
-            'Оплата средн. в динамике, руб.',
-            'Оплата средн. прогноз, руб.',
-            'Оплата поручено средн., руб.',
-            'Факт проекта_поручено, шт.',
-            'Факт проекта_не_поручено, шт.' 
-        ]
-        
-        for col in always_show:
-            if col in extended_df.columns:
-                display_cols.append(col)
-        
-        existing_display = [c for c in display_cols if c in extended_df.columns]
-        
-        st.dataframe(extended_df[existing_display], use_container_width=True, hide_index=True)
-        
-        # ============================================
-        # 8. СКАЧИВАНИЕ (project_data, без ретро)
+        # 6. СКАЧИВАНИЕ (project_data, без ретро)
         # ============================================
         
         cols_to_drop = ['Оплата_поручено']
