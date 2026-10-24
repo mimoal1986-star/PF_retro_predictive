@@ -365,25 +365,22 @@ class DataVisualizer:
         # 1. БАЗОВЫЕ АГРЕГАЦИИ (один раз за сессию)
         # ============================================
         
-        # Проверяем, изменились ли данные
         data_hash = hash(data.values.tobytes()) if not data.empty else 0
         
         if 'planfact_base_data' not in st.session_state or st.session_state.get('planfact_data_hash') != data_hash:
-            # Вычисляем базовые агрегации
             base_agg = self._compute_base_planfact_aggregations(data, region_col)
             st.session_state.planfact_base_data = base_agg
             st.session_state.planfact_data_hash = data_hash
-            st.session_state.planfact_filtered_data = None  # сбрасываем фильтры
+            st.session_state.planfact_filtered_data = None
         
         base_data = st.session_state.planfact_base_data
         
         # ============================================
-        # 2. ФИЛЬТРЫ В ФОРМЕ (без rerun при выборе)
+        # 2. ФИЛЬТРЫ В ФОРМЕ
         # ============================================
         
         with st.form("planfact_filters_form"):
             
-            # Получаем уникальные значения из базовых данных
             all_dsm = base_data['all_dsm']
             all_asm = base_data['all_asm']
             all_clients = base_data['all_clients']
@@ -403,7 +400,6 @@ class DataVisualizer:
                     horizontal=True,
                     index=0 if st.session_state.get('planfact_dsm_mode', 'Включить') == 'Включить' else 1
                 )
-                # Читаем значение из session_state (не присваиваем)
                 dsm_mode = st.session_state.planfact_dsm_mode
                 
                 dsm_selected = st.multiselect(
@@ -423,7 +419,6 @@ class DataVisualizer:
                     index=0 if st.session_state.get('planfact_asm_mode', 'Включить') == 'Включить' else 1
                 )
                 asm_mode = st.session_state.planfact_asm_mode
-                
                 
                 asm_options = all_asm
                 asm_selected = st.multiselect(
@@ -463,10 +458,7 @@ class DataVisualizer:
                 )
                 client_mode = st.session_state.planfact_client_mode
                 
-                # Ограничиваем клиентов выбранными фильтрами
                 client_filtered = all_clients
-                # if dsm_selected:
-                #     client_filtered = [c for c in client_filtered if c in dsm_selected]
                 
                 client_selected = st.multiselect(
                     "Выбрать клиента",
@@ -477,7 +469,6 @@ class DataVisualizer:
             
             st.markdown("---")
             
-            # КНОПКА ПРИМЕНЕНИЯ ФИЛЬТРОВ
             apply_filters = st.form_submit_button(
                 "✅ Применить фильтры",
                 type="primary",
@@ -486,7 +477,7 @@ class DataVisualizer:
             )
         
         # ============================================
-        # 3. ПРИМЕНЯЕМ ФИЛЬТРЫ (только по кнопке)
+        # 3. ПРИМЕНЯЕМ ФИЛЬТРЫ
         # ============================================
         
         if apply_filters:
@@ -500,24 +491,20 @@ class DataVisualizer:
             )
             st.session_state.planfact_filtered_data = filtered_data
         
-        # Берем данные для отображения
         if st.session_state.planfact_filtered_data is not None:
             display_data = st.session_state.planfact_filtered_data
         else:
             display_data = base_data['raw_data']
 
-        # ============================================
         # ФИЛЬТР ПО КОЛОНКЕ "ПРОДЛЕНИЕ"
-        # ============================================
         if st.session_state.get('planfact_include_prodlenie', False):
             if 'Продление' in display_data.columns:
                 display_data = display_data[display_data['Продление'] == 1]
             else:
                 st.warning("⚠️ Колонка 'Продление' не найдена в данных")
-        # ============================================
         
         # ============================================
-        # 4. РАЗВЕРТКА И ОТОБРАЖЕНИЕ
+        # 4. РАЗВЕРТКА
         # ============================================
         
         st.subheader("📊 Детализация")
@@ -556,10 +543,8 @@ class DataVisualizer:
         if show_po and 'ПО' in display_data.columns:
             group_cols.append('ПО')
 
-        # Рассчитываем фокус на уровне волны ДО агрегации
         display_data = self.calculate_focus(display_data, aggregation_level='wave')
         
-        # Агрегируем для отображения
         agg_columns = {
             'План проекта, шт.': 'sum',
             'План на дату, шт.': 'sum',
@@ -597,19 +582,14 @@ class DataVisualizer:
         
         existing_agg = {k: v for k, v in agg_columns.items() if k in display_data.columns}
 
-        # ВСЕГДА группируем (даже если group_cols == ['Клиент'])
         project_data = display_data.groupby(group_cols).agg(existing_agg).reset_index()
 
-        # ============================================
-        # 4.5. ПОДМЕНА ДАТ НА УРОВНЕ КЛИЕНТА (только для выгрузки)
-        # ============================================
         if group_cols == ['Клиент']:
             if 'Клиент_дата_старта' in project_data.columns:
                 project_data['Дата старта'] = project_data['Клиент_дата_старта']
                 project_data['Дата финиша'] = project_data['Клиент_дата_финиша']
                 project_data['Длительность'] = project_data['Клиент_длительность']
 
-        # === ПЕРЕСЧЕТ ОПЛАТА ПЛАН СРЕДН. ПОСЛЕ АГРЕГАЦИИ ===
         if 'Оплата план' in project_data.columns and 'План проекта, шт.' in project_data.columns:
             mask_plan_positive = project_data['План проекта, шт.'] > 0
             project_data['Оплата план средн., руб.'] = 0.0
@@ -619,7 +599,6 @@ class DataVisualizer:
                     project_data.loc[mask_plan_positive, 'План проекта, шт.']
                 ).round(2)
 
-        # === ПЕРЕСЧЕТ ОПЛАТА ФАКТ СРЕДН. ПОСЛЕ АГРЕГАЦИИ (ВСЕГДА) ===
         if 'Оплата факт' in project_data.columns and 'Факт проекта, шт.' in project_data.columns:
             mask_fact_positive = project_data['Факт проекта, шт.'] > 0
             project_data['Оплата факт средн., руб.'] = 0.0
@@ -629,20 +608,17 @@ class DataVisualizer:
                     project_data.loc[mask_fact_positive, 'Факт проекта, шт.']
                 ).round(2)
         
-        # Определяем колонку прогноза
         forecast_col = None
         if 'Прогноз, шт' in project_data.columns:
             forecast_col = 'Прогноз, шт'
         elif 'Прогноз, шт.' in project_data.columns:
             forecast_col = 'Прогноз, шт.'
         
-        # Метрика 1: Оплата план-факт средн., руб.
         if 'Оплата план средн., руб.' in project_data.columns and 'Оплата факт средн., руб.' in project_data.columns:
             project_data['Оплата план-факт средн., руб.'] = (
                 project_data['Оплата план средн., руб.'] - project_data['Оплата факт средн., руб.']
             ).round(2)
         
-        # Метрика 2: Оплата факт/план средн., %
         if 'Оплата план средн., руб.' in project_data.columns and 'Оплата факт средн., руб.' in project_data.columns:
             mask = project_data['Оплата план средн., руб.'] > 0
             project_data['Оплата факт/план средн., %'] = 0.0
@@ -652,26 +628,21 @@ class DataVisualizer:
                     project_data.loc[mask, 'Оплата план средн., руб.'] * 100
                 ).round(1)
         
-        # Метрика 3: Оплата средн. в динамике, руб.
         if forecast_col and 'Оплата план средн., руб.' in project_data.columns and 'Оплата факт средн., руб.' in project_data.columns:
             project_data['Оплата средн. в динамике, руб.'] = (
                 (project_data['Оплата план средн., руб.'] - project_data['Оплата факт средн., руб.']) * 
                 project_data[forecast_col]
             ).round(2)
         
-        # Метрика 4: Оплата средн. прогноз, руб.
         if 'Оплата план средн., руб.' in project_data.columns and 'Оплата факт средн., руб.' in project_data.columns and 'План проекта, шт.' in project_data.columns:
             project_data['Оплата средн. прогноз, руб.'] = (
                 (project_data['Оплата план средн., руб.'] - project_data['Оплата факт средн., руб.']) * 
                 project_data['План проекта, шт.']
             ).round(2)
         
-        # ========== ДОБАВЛЕНИЕ КОЛОНОК ДЛЯ КРАТКОГО ОТЧЕТА ==========
-        # 1. Прогноз, шт - используем существующий расчет из _calculate_metrics
         if 'Прогноз, шт' not in project_data.columns and 'Прогноз, шт.' in project_data.columns:
             project_data['Прогноз, шт'] = project_data['Прогноз, шт.']
         
-        # 2. Прогноз ВП, % - рассчитываем если есть прогноз и план
         if 'Прогноз ВП, %' not in project_data.columns:
             if 'Прогноз, шт' in project_data.columns and 'План проекта, шт.' in project_data.columns:
                 mask = project_data['План проекта, шт.'] > 0
@@ -681,14 +652,12 @@ class DataVisualizer:
                     project_data.loc[mask, 'План проекта, шт.'] * 100
                 ).round(1)
         
-        # 3. Отклонение от плана на сегодня, шт.
         if 'Отклонение от плана на сегодня, шт.' not in project_data.columns:
             if 'Факт проекта, шт.' in project_data.columns and 'План на дату, шт.' in project_data.columns:
                 project_data['Отклонение от плана на сегодня, шт.'] = (
                     project_data['Факт проекта, шт.'] - project_data['План на дату, шт.']
                 ).round(1)
 
-        # 4. Факт ВП, % - рассчитываем из фактических данных
         if 'Факт ВП, %' not in project_data.columns:
             if 'Факт проекта, шт.' in project_data.columns and 'План проекта, шт.' in project_data.columns:
                 mask = project_data['План проекта, шт.'] > 0
@@ -697,10 +666,7 @@ class DataVisualizer:
                     project_data.loc[mask, 'Факт проекта, шт.'] / 
                     project_data.loc[mask, 'План проекта, шт.'] * 100
                 ).round(1)
-                
-        # ============================================================
         
-        # Расчет средней оплаты
         if 'Оплата факт' in project_data.columns and 'Факт проекта, шт.' in project_data.columns:
             mask = project_data['Факт проекта, шт.'] > 0
             project_data['Оплата факт средн., руб.'] = 0.0
@@ -709,7 +675,6 @@ class DataVisualizer:
             ).round(2)
             project_data = project_data.drop('Оплата факт', axis=1)
 
-        # Расчет средней оплаты для порученных
         if 'Оплата_поручено' in project_data.columns and 'Факт проекта_поручено, шт.' in project_data.columns:
             mask_assigned = project_data['Факт проекта_поручено, шт.'] > 0
             project_data['Оплата поручено средн., руб.'] = 0.0
@@ -717,7 +682,6 @@ class DataVisualizer:
                 project_data.loc[mask_assigned, 'Оплата_поручено'] / project_data.loc[mask_assigned, 'Факт проекта_поручено, шт.']
             ).round(2)
 
-        # === СРЕДНИЙ ПЛАН НА ДЕНЬ ДЛЯ 100% ПЛАНА ===
         remaining_plan = project_data['План проекта, шт.'] - project_data['Факт проекта, шт.']
         remaining_plan = remaining_plan.clip(lower=0)
         days_left = project_data['Дней до конца проекта'].replace(0, 1)
@@ -725,13 +689,12 @@ class DataVisualizer:
         project_data['Ср. план на день для 100% плана'] = (
             np.ceil(remaining_plan / days_left)
         ).astype(int)
-        # Преобразуем коды регионов в длинные названия
+        
         if 'Регион' in project_data.columns:
             project_data['Регион'] = project_data['Регион'].apply(self._get_long_region)
         elif region_col in project_data.columns and region_col != 'Регион':
             project_data[region_col] = project_data[region_col].apply(self._get_long_region)
             
-        # Добавляем вычисляемые метрики
         mask_plan = project_data['План на дату, шт.'] > 0
         project_data['План/Факт на дату,%'] = 0.0
         if mask_plan.any():
@@ -759,12 +722,10 @@ class DataVisualizer:
                  project_data.loc[mask_plan, 'План на дату, шт.']) - 1
             ).round(3) * 100
 
-        # △План/Факт проекта, шт (Факт - План)
         project_data['△План/Факт проекта, шт'] = (
             project_data['Факт проекта, шт.'] - project_data['План проекта, шт.']
         ).round(1)
         
-        # △План/Факт проекта, %
         mask_project_plan = project_data['План проекта, шт.'] > 0
         project_data['△План/Факт проекта, %'] = 0.0
         if mask_project_plan.any():
@@ -772,7 +733,6 @@ class DataVisualizer:
                 (project_data.loc[mask_project_plan, 'Факт проекта, шт.'] / 
                  project_data.loc[mask_project_plan, 'План проекта, шт.']) - 1
             ).round(3) * 100
-        
         
         # KPI
         st.markdown("### 📊 Ключевые показатели")
@@ -800,7 +760,6 @@ class DataVisualizer:
             if 'Факт на дату, шт.' in prodata_df.columns:
                 prodata_fact_date_total = prodata_df['Факт на дату, шт.'].sum()
         
-        # Рассчитываем общие значения
         plan_total = project_data['План проекта, шт.'].sum() if 'План проекта, шт.' in project_data.columns else 0
         fact_total = project_data['Факт проекта, шт.'].sum() if 'Факт проекта, шт.' in project_data.columns else 0
         plan_date_total = project_data['План на дату, шт.'].sum() if 'План на дату, шт.' in project_data.columns else 0
@@ -813,13 +772,9 @@ class DataVisualizer:
             plan_date_total += prodata_plan_date_total
             fact_date_total += prodata_fact_date_total
         
-        # Отклонение от плана на сегодня, шт (Факт проекта - План на дату)
         deviation = fact_total - plan_date_total
-        
-        # Проценты
         pf_percent = (fact_total / plan_total * 100) if plan_total > 0 else 0
         
-        # Расчет прогноза ВП по всем проектам
         if 'Прогноз, шт.' in project_data.columns:
             forecast_total = project_data['Прогноз, шт.'].sum()
         else:
@@ -831,7 +786,6 @@ class DataVisualizer:
         
         forecast_percent = (forecast_total / plan_total * 100) if plan_total > 0 else 0
         
-        # РЯД 1: План проекта, Факт проекта, Факт ВП, %
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("📊 План проекта", f"{plan_total:,.0f} шт")
@@ -840,7 +794,6 @@ class DataVisualizer:
         with col3:
             st.metric("🎯 Факт ВП, %", f"{pf_percent:.1f}%")
         
-        # РЯД 2: Отклонение, Факт поручено, Прогноз ВП, %
         col4, col5, col6 = st.columns(3)
         with col4:
             st.metric("📉 Отклонение от плана на сегодня, шт", f"{deviation:+,.0f}")
@@ -849,72 +802,199 @@ class DataVisualizer:
         with col6:
             st.metric("🔮 Прогноз ВП, %", f"{forecast_percent:.1f}%")
         
-        # Отображаем таблицу
-        display_cols = ['Клиент']
+        # ============================================
+        # 5. РЕТРО-ДАННЫЕ (справочно)
+        # ============================================
         
-        # Добавляем колонки развертки в зависимости от чек-боксов
-        if show_project and 'Проект' in project_data.columns:
-            display_cols.append('Проект')
-        if show_wave and 'Волна' in project_data.columns:
-            display_cols.append('Волна')
-        if show_regions and region_col in project_data.columns:
-            display_cols.append(region_col)
-        if show_dsm and 'DSM' in project_data.columns:
-            display_cols.append('DSM')
-        if show_asm and 'ASM' in project_data.columns:
-            display_cols.append('ASM')
-        if show_rs and 'RS' in project_data.columns:
-            display_cols.append('RS')
-        if show_po and 'ПО' in project_data.columns:
-            display_cols.append('ПО')
+        analytics_df = st.session_state.get('analytics_df')
+        retro_available = analytics_df is not None and not analytics_df.empty
         
-        # Колонки, которые показываются всегда
-        always_show = [
-            'План проекта, шт.', 
-            'Факт проекта, шт.',
-            'План на дату, шт.',
-            'Факт на дату, шт.',
-            'План/Факт проекта,%',
-            '△План/Факт проекта, шт',
-            '△План/Факт проекта, %',
-            'План/Факт на дату,%',
-            '△План/Факт на дату, шт',
-            '△План/Факт на дату, %',
-            'Фокус',
-            'Прогноз на месяц, шт.',
-            'Длительность',
-            'Дней до конца проекта',
-            'Утилизация тайминга, %',
-            'Ср. план на день для 100% плана',
-            'Метод подбора дат',
-            'Оплата план',
-            'Оплата план средн., руб.',
+        # Список клиентов с ретро-данными (для multiselect)
+        clients_with_retro = []
+        if retro_available and 'Клиент' in analytics_df.columns:
+            retro_clients_set = set(
+                analytics_df['Клиент'].dropna().astype(str).str.strip().unique()
+            )
+            if 'Клиент' in project_data.columns:
+                for c in project_data['Клиент'].dropna().astype(str).unique():
+                    if str(c).strip() in retro_clients_set:
+                        clients_with_retro.append(str(c).strip())
+        
+        # Multiselect над таблицей
+        selected_retro_clients = []
+        if retro_available and clients_with_retro:
+            selected_retro_clients = st.multiselect(
+                "📅 Развернуть ретро по клиентам (месяцы)",
+                options=clients_with_retro,
+                default=[],
+                key="planfact_retro_expanded_clients",
+                help="Выберите клиентов, для которых нужно показать разбивку ретро по месяцам"
+            )
+        
+        # ============================================
+        # 6. СБОРКА РАСШИРЕННОГО DATAFRAME
+        # ============================================
+        
+        # Точный порядок колонок из ТЗ
+        retro_display_cols = [
+            'Клиент', 'Период',
+            'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
+            'Длительность', 'Дата старта', 'Дата финиша',
+            'Дата старта_гугл', 'Дата финиша_гугл', 'Коэффициент месяца',
+            'Метод подбора дат', 'Дней до конца проекта', 'Прогноз, шт.',
+            'Утилизация тайминга, %', 'Фокус',
+            'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
             'Оплата факт средн., руб.',
-            'Оплата план-факт средн., руб.',
-            'Оплата факт/план средн., %',
-            'Оплата средн. в динамике, руб.',
-            'Оплата средн. прогноз, руб.',
+            'Клиент_дата_старта', 'Клиент_дата_финиша', 'Клиент_длительность',
+            'Продление',
+            'Прогноз, шт', 'Прогноз ВП, %',
+            'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
             'Оплата поручено средн., руб.',
-            'Факт проекта_поручено, шт.',
-            'Факт проекта_не_поручено, шт.' 
+            'Ср. план на день для 100% плана',
+            'План/Факт на дату,%', 'План/Факт проекта,%',
+            '△План/Факт на дату, шт', '△План/Факт на дату, %',
+            '△План/Факт проекта, шт', '△План/Факт проекта, %',
         ]
         
-        # Добавляем всегда показываемые колонки, если они есть в данных
-        for col in always_show:
-            if col in project_data.columns:
-                display_cols.append(col)
+        existing_retro_cols = [c for c in retro_display_cols if c in project_data.columns or c == 'Период']
         
-        existing_display = [c for c in display_cols if c in project_data.columns]
-        st.dataframe(project_data[existing_display], use_container_width=True, hide_index=True)
-
-
-        # Удаляем лишние колонки перед выгрузкой
+        project_data_sorted = project_data.copy()
+        
+        rows = []
+        
+        for _, current_row in project_data_sorted.iterrows():
+            # П3: единая нормализация client_name
+            client_name = str(current_row['Клиент']).strip()
+            
+            # 1. Строка 'текущий' — все метрики из project_data
+            current_dict = {c: current_row.get(c, None) for c in existing_retro_cols if c != 'Период'}
+            current_dict['Клиент'] = client_name
+            current_dict['Период'] = 'текущий'
+            rows.append(current_dict)
+            
+            # 2. Строка 'ретро' — 3 метрики из ретро (если есть)
+            retro_row = {c: None for c in existing_retro_cols if c != 'Период'}
+            retro_row['Клиент'] = ''  # merged
+            retro_row['Период'] = 'ретро'
+            
+            if retro_available and 'Клиент' in analytics_df.columns:
+                client_retro_df = analytics_df[
+                    analytics_df['Клиент'].astype(str).str.strip() == client_name
+                ]
+                
+                if not client_retro_df.empty:
+                    pairs = sorted(set(
+                        (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
+                        .dropna().itertuples(index=False, name=None)
+                    ))
+                    
+                    if pairs:
+                        y_min, m_min = pairs[0]
+                        y_max, m_max = pairs[-1]
+                        months_list = []
+                        y, m = y_min, m_min
+                        while (y, m) <= (y_max, m_max):
+                            months_list.append((y, m))
+                            if m == 12:
+                                y, m = y + 1, 1
+                            else:
+                                m += 1
+                    else:
+                        months_list = []
+                    
+                    if months_list:
+                        kpi = self._compute_kpi_retro(client_retro_df, months_list)
+                        retro_row['План проекта, шт.'] = kpi['plan_avg']
+                        retro_row['Факт проекта, шт.'] = kpi['fact_avg']
+                        retro_row['План/Факт проекта,%'] = kpi['pf_percent']
+            rows.append(retro_row)
+            
+            # 3. Строки месяцев — только если клиент выбран в multiselect
+            if selected_retro_clients and client_name in selected_retro_clients:
+                if retro_available and 'Клиент' in analytics_df.columns:
+                    client_retro_df = analytics_df[
+                        analytics_df['Клиент'].astype(str).str.strip() == client_name
+                    ]
+                    
+                    if not client_retro_df.empty:
+                        pairs = sorted(set(
+                            (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
+                            .dropna().itertuples(index=False, name=None)
+                        ), reverse=True)
+                        
+                        if pairs:
+                            monthly_table = self._compute_monthly_table_retro(client_retro_df, pairs)
+                            if monthly_table is not None and not monthly_table.empty:
+                                for month_label in monthly_table.columns:
+                                    month_row = {c: None for c in existing_retro_cols if c != 'Период'}
+                                    month_row['Клиент'] = ''
+                                    month_row['Период'] = month_label
+                                    
+                                    try:
+                                        month_row['План проекта, шт.'] = monthly_table.loc['План проекта, шт', month_label]
+                                    except KeyError:
+                                        pass
+                                    try:
+                                        month_row['Факт проекта, шт.'] = monthly_table.loc['Факт проекта, шт', month_label]
+                                    except KeyError:
+                                        pass
+                                    try:
+                                        month_row['План/Факт проекта,%'] = monthly_table.loc['ПФ клиент, %', month_label]
+                                    except KeyError:
+                                        pass
+                                    
+                                    rows.append(month_row)
+        
+        extended_df = pd.DataFrame(rows, columns=existing_retro_cols)
+        
+        # ============================================
+        # П1: нормализация типов перед st.dataframe
+        # ============================================
+        
+        numeric_cols_ext = [
+            'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
+            'Длительность', 'Коэффициент месяца', 'Дней до конца проекта', 'Прогноз, шт.',
+            'Утилизация тайминга, %',
+            'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
+            'Оплата факт средн., руб.', 'Клиент_длительность',
+            'Продление',
+            'Прогноз, шт', 'Прогноз ВП, %',
+            'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
+            'Оплата поручено средн., руб.',
+            'Ср. план на день для 100% плана',
+            'План/Факт на дату,%', 'План/Факт проекта,%',
+            '△План/Факт на дату, шт', '△План/Факт на дату, %',
+            '△План/Факт проекта, шт', '△План/Факт проекта, %',
+        ]
+        
+        date_cols_ext = [
+            'Дата старта', 'Дата финиша', 'Дата старта_гугл', 'Дата финиша_гугл',
+            'Клиент_дата_старта', 'Клиент_дата_финиша',
+        ]
+        
+        for c in numeric_cols_ext:
+            if c in extended_df.columns:
+                extended_df[c] = pd.to_numeric(extended_df[c], errors='coerce')
+        
+        for c in date_cols_ext:
+            if c in extended_df.columns:
+                extended_df[c] = pd.to_datetime(extended_df[c], errors='coerce')
+        
+        # ============================================
+        # 7. ОТОБРАЖЕНИЕ
+        # ============================================
+        
+        st.dataframe(extended_df, use_container_width=True, hide_index=True)
+        
+        # ============================================
+        # 8. СКАЧИВАНИЕ (project_data, без ретро)
+        # ============================================
+        
         cols_to_drop = ['Оплата_поручено']
         for col in cols_to_drop:
             if col in project_data.columns:
                 project_data = project_data.drop(col, axis=1)
-                
-        # Кнопка скачивания
+        
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             project_data.to_excel(writer, sheet_name='План_факт_проекты', index=False)
@@ -928,7 +1008,6 @@ class DataVisualizer:
             use_container_width=True
         )
         
-        # Кнопка скачивания краткого отчета
         brief_cols = [
             'Клиент',
             'План проекта, шт.',
@@ -954,7 +1033,6 @@ class DataVisualizer:
             'Оплата поручено средн., руб.'
         ]
         
-        # Оставляем только существующие колонки
         existing_brief_cols = [col for col in brief_cols if col in project_data.columns]
         brief_report = project_data[existing_brief_cols].copy()
         
@@ -3161,7 +3239,7 @@ class DataVisualizer:
             if df_export.empty:
                 st.warning("По выбранным фильтрам данных нет.")
             else:
-                export_buffer = io_buffer = BytesIO()
+                export_buffer = BytesIO()
                 with pd.ExcelWriter(export_buffer, engine="openpyxl") as writer:
                     df_export.to_excel(writer, index=False, sheet_name="Данные")
                 
