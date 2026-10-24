@@ -809,146 +809,68 @@ class DataVisualizer:
         analytics_df = st.session_state.get('analytics_df')
         retro_available = analytics_df is not None and not analytics_df.empty
         
-        # Список клиентов с ретро-данными (для multiselect)
-        clients_with_retro = []
+        # Один раз группируем analytics_df по нормализованному клиенту
+        retro_by_client = {}
         if retro_available and 'Клиент' in analytics_df.columns:
-            retro_clients_set = set(
-                analytics_df['Клиент'].dropna().astype(str).str.strip().unique()
-            )
-            if 'Клиент' in project_data.columns:
-                for c in project_data['Клиент'].dropna().astype(str).unique():
-                    if str(c).strip() in retro_clients_set:
-                        clients_with_retro.append(str(c).strip())
-        
-        # Multiselect над таблицей
-        selected_retro_clients = []
-        if retro_available and clients_with_retro:
-            selected_retro_clients = st.multiselect(
-                "📅 Развернуть ретро по клиентам (месяцы)",
-                options=clients_with_retro,
-                default=[],
-                key="planfact_retro_expanded_clients",
-                help="Выберите клиентов, для которых нужно показать разбивку ретро по месяцам"
-            )
+            analytics_df_norm = analytics_df.copy()
+            analytics_df_norm['_client_norm'] = analytics_df_norm['Клиент'].astype(str).str.strip()
+            retro_by_client = {k: v for k, v in analytics_df_norm.groupby('_client_norm')}
         
         # ============================================
         # 6. СБОРКА РАСШИРЕННОГО DATAFRAME
         # ============================================
-        
-        # Точный порядок колонок из ТЗ
-        retro_display_cols = [
-            'Клиент', 'Период',
-            'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
-            'Длительность', 'Дата старта', 'Дата финиша',
-            'Дата старта_гугл', 'Дата финиша_гугл', 'Коэффициент месяца',
-            'Метод подбора дат', 'Дней до конца проекта', 'Прогноз, шт.',
-            'Утилизация тайминга, %', 'Фокус',
-            'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
-            'Оплата факт средн., руб.',
-            'Клиент_дата_старта', 'Клиент_дата_финиша', 'Клиент_длительность',
-            'Продление',
-            'Прогноз, шт', 'Прогноз ВП, %',
-            'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
-            'Оплата поручено средн., руб.',
-            'Ср. план на день для 100% плана',
-            'План/Факт на дату,%', 'План/Факт проекта,%',
-            '△План/Факт на дату, шт', '△План/Факт на дату, %',
-            '△План/Факт проекта, шт', '△План/Факт проекта, %',
-        ]
-        
-        existing_retro_cols = [c for c in retro_display_cols if c in project_data.columns or c == 'Период']
         
         project_data_sorted = project_data.copy()
         
         rows = []
         
         for _, current_row in project_data_sorted.iterrows():
-            # П3: единая нормализация client_name
             client_name = str(current_row['Клиент']).strip()
             
-            # 1. Строка 'текущий' — все метрики из project_data
-            current_dict = {c: current_row.get(c, None) for c in existing_retro_cols if c != 'Период'}
+            # 1. Строка 'текущий'
+            current_dict = current_row.to_dict()
             current_dict['Клиент'] = client_name
             current_dict['Период'] = 'текущий'
             rows.append(current_dict)
             
-            # 2. Строка 'ретро' — 3 метрики из ретро (если есть)
-            retro_row = {c: None for c in existing_retro_cols if c != 'Период'}
-            retro_row['Клиент'] = ''  # merged
+            # 2. Строка 'ретро'
+            retro_row = {c: None for c in current_row.index}
+            retro_row['Клиент'] = ''
             retro_row['Период'] = 'ретро'
             
-            if retro_available and 'Клиент' in analytics_df.columns:
-                client_retro_df = analytics_df[
-                    analytics_df['Клиент'].astype(str).str.strip() == client_name
-                ]
-                
-                if not client_retro_df.empty:
-                    pairs = sorted(set(
-                        (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
-                        .dropna().itertuples(index=False, name=None)
-                    ))
-                    
-                    if pairs:
-                        y_min, m_min = pairs[0]
-                        y_max, m_max = pairs[-1]
-                        months_list = []
-                        y, m = y_min, m_min
-                        while (y, m) <= (y_max, m_max):
-                            months_list.append((y, m))
-                            if m == 12:
-                                y, m = y + 1, 1
-                            else:
-                                m += 1
-                    else:
-                        months_list = []
-                    
-                    if months_list:
-                        kpi = self._compute_kpi_retro(client_retro_df, months_list)
-                        retro_row['План проекта, шт.'] = kpi['plan_avg']
-                        retro_row['Факт проекта, шт.'] = kpi['fact_avg']
-                        retro_row['План/Факт проекта,%'] = kpi['pf_percent']
-            rows.append(retro_row)
+            client_retro_df = retro_by_client.get(client_name)
             
-            # 3. Строки месяцев — только если клиент выбран в multiselect
-            if selected_retro_clients and client_name in selected_retro_clients:
-                if retro_available and 'Клиент' in analytics_df.columns:
-                    client_retro_df = analytics_df[
-                        analytics_df['Клиент'].astype(str).str.strip() == client_name
-                    ]
-                    
-                    if not client_retro_df.empty:
-                        pairs = sorted(set(
-                            (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
-                            .dropna().itertuples(index=False, name=None)
-                        ), reverse=True)
-                        
-                        if pairs:
-                            monthly_table = self._compute_monthly_table_retro(client_retro_df, pairs)
-                            if monthly_table is not None and not monthly_table.empty:
-                                for month_label in monthly_table.columns:
-                                    month_row = {c: None for c in existing_retro_cols if c != 'Период'}
-                                    month_row['Клиент'] = ''
-                                    month_row['Период'] = month_label
-                                    
-                                    try:
-                                        month_row['План проекта, шт.'] = monthly_table.loc['План проекта, шт', month_label]
-                                    except KeyError:
-                                        pass
-                                    try:
-                                        month_row['Факт проекта, шт.'] = monthly_table.loc['Факт проекта, шт', month_label]
-                                    except KeyError:
-                                        pass
-                                    try:
-                                        month_row['План/Факт проекта,%'] = monthly_table.loc['ПФ клиент, %', month_label]
-                                    except KeyError:
-                                        pass
-                                    
-                                    rows.append(month_row)
+            if client_retro_df is not None and not client_retro_df.empty:
+                pairs = sorted(set(
+                    (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
+                    .dropna().itertuples(index=False, name=None)
+                ))
+                
+                if pairs:
+                    y_min, m_min = pairs[0]
+                    y_max, m_max = pairs[-1]
+                    months_list = []
+                    y, m = y_min, m_min
+                    while (y, m) <= (y_max, m_max):
+                        months_list.append((y, m))
+                        if m == 12:
+                            y, m = y + 1, 1
+                        else:
+                            m += 1
+                else:
+                    months_list = []
+                
+                if months_list:
+                    kpi = self._compute_kpi_retro(client_retro_df, months_list)
+                    retro_row['План проекта, шт.'] = kpi['plan_avg']
+                    retro_row['Факт проекта, шт.'] = kpi['fact_avg']
+                    retro_row['План/Факт проекта,%'] = kpi['pf_percent']
+            rows.append(retro_row)
         
-        extended_df = pd.DataFrame(rows, columns=existing_retro_cols)
+        extended_df = pd.DataFrame(rows)
         
         # ============================================
-        # П1: нормализация типов перед st.dataframe
+        # П1: нормализация ТОЛЬКО числовых колонок (даты не трогаем!)
         # ============================================
         
         numeric_cols_ext = [
@@ -967,24 +889,68 @@ class DataVisualizer:
             '△План/Факт проекта, шт', '△План/Факт проекта, %',
         ]
         
-        date_cols_ext = [
-            'Дата старта', 'Дата финиша', 'Дата старта_гугл', 'Дата финиша_гугл',
-            'Клиент_дата_старта', 'Клиент_дата_финиша',
-        ]
-        
         for c in numeric_cols_ext:
             if c in extended_df.columns:
                 extended_df[c] = pd.to_numeric(extended_df[c], errors='coerce')
         
-        for c in date_cols_ext:
-            if c in extended_df.columns:
-                extended_df[c] = pd.to_datetime(extended_df[c], errors='coerce')
-        
         # ============================================
-        # 7. ОТОБРАЖЕНИЕ
+        # 7. ОТОБРАЖЕНИЕ — порядок колонок как в старой версии + 'Период'
         # ============================================
         
-        st.dataframe(extended_df, use_container_width=True, hide_index=True)
+        display_cols = ['Клиент', 'Период']
+        
+        if show_project and 'Проект' in extended_df.columns:
+            display_cols.append('Проект')
+        if show_wave and 'Волна' in extended_df.columns:
+            display_cols.append('Волна')
+        if show_regions and region_col in extended_df.columns:
+            display_cols.append(region_col)
+        if show_dsm and 'DSM' in extended_df.columns:
+            display_cols.append('DSM')
+        if show_asm and 'ASM' in extended_df.columns:
+            display_cols.append('ASM')
+        if show_rs and 'RS' in extended_df.columns:
+            display_cols.append('RS')
+        if show_po and 'ПО' in extended_df.columns:
+            display_cols.append('ПО')
+        
+        always_show = [
+            'План проекта, шт.', 
+            'Факт проекта, шт.',
+            'План на дату, шт.',
+            'Факт на дату, шт.',
+            'План/Факт проекта,%',
+            '△План/Факт проекта, шт',
+            '△План/Факт проекта, %',
+            'План/Факт на дату,%',
+            '△План/Факт на дату, шт',
+            '△План/Факт на дату, %',
+            'Фокус',
+            'Прогноз на месяц, шт.',
+            'Длительность',
+            'Дней до конца проекта',
+            'Утилизация тайминга, %',
+            'Ср. план на день для 100% плана',
+            'Метод подбора дат',
+            'Оплата план',
+            'Оплата план средн., руб.',
+            'Оплата факт средн., руб.',
+            'Оплата план-факт средн., руб.',
+            'Оплата факт/план средн., %',
+            'Оплата средн. в динамике, руб.',
+            'Оплата средн. прогноз, руб.',
+            'Оплата поручено средн., руб.',
+            'Факт проекта_поручено, шт.',
+            'Факт проекта_не_поручено, шт.' 
+        ]
+        
+        for col in always_show:
+            if col in extended_df.columns:
+                display_cols.append(col)
+        
+        existing_display = [c for c in display_cols if c in extended_df.columns]
+        
+        st.dataframe(extended_df[existing_display], use_container_width=True, hide_index=True)
         
         # ============================================
         # 8. СКАЧИВАНИЕ (project_data, без ретро)
