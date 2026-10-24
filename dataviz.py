@@ -578,11 +578,21 @@ class DataVisualizer:
             'Клиент_дата_финиша': 'first',
             'Клиент_длительность': 'first',
             'Продление': 'first',
+            'RS': 'nunique',
         }
         
         existing_agg = {k: v for k, v in agg_columns.items() if k in display_data.columns}
 
         project_data = display_data.groupby(group_cols).agg(existing_agg).reset_index()
+        
+        # Кол-во анкет на 1 RS = Факт проекта / кол-во уникальных RS
+        if 'RS' in project_data.columns and 'Факт проекта, шт.' in project_data.columns:
+            project_data['Кол-во анкет на 1 RS, шт.'] = 0.0
+            mask_rs = project_data['RS'] > 0
+            if mask_rs.any():
+                project_data.loc[mask_rs, 'Кол-во анкет на 1 RS, шт.'] = (
+                    project_data.loc[mask_rs, 'Факт проекта, шт.'] / project_data.loc[mask_rs, 'RS']
+                ).round(1)
 
         if group_cols == ['Клиент']:
             if 'Клиент_дата_старта' in project_data.columns:
@@ -857,7 +867,9 @@ class DataVisualizer:
                 'Оплата средн. прогноз, руб.',
                 'Оплата поручено средн., руб.',
                 'Факт проекта_поручено, шт.',
-                'Факт проекта_не_поручено, шт.' 
+                'Факт проекта_не_поручено, шт.',
+                'RS',
+                'Кол-во анкет на 1 RS, шт.',
             ]
             
             for col in always_show:
@@ -998,7 +1010,9 @@ class DataVisualizer:
                 'Оплата средн. прогноз, руб.',
                 'Оплата поручено средн., руб.',
                 'Факт проекта_поручено, шт.',
-                'Факт проекта_не_поручено, шт.' 
+                'Факт проекта_не_поручено, шт.',
+                'RS',
+                'Кол-во анкет на 1 RS, шт.',
             ]
             
             for col in always_show:
@@ -1053,7 +1067,9 @@ class DataVisualizer:
             'Оплата факт/план средн., %',
             'Оплата средн. в динамике, руб.',
             'Оплата средн. прогноз, руб.',
-            'Оплата поручено средн., руб.'
+            'Оплата поручено средн., руб.',
+            'RS',
+            'Кол-во анкет на 1 RS, шт.',
         ]
         
         existing_brief_cols = [col for col in brief_cols if col in project_data.columns]
