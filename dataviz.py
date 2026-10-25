@@ -3216,7 +3216,7 @@ class DataVisualizer:
             y=alt.Y(
                 "Value:Q",
                 scale=alt.Scale(zero=True),
-                axis=alt.Axis(format=".0f", title=y_title, labelFont=font, titleFont=font),
+                axis=alt.Axis(format=".0f", title=None, labelFont=font, titleFont=font),
             ),
             color=alt.Color("Цвет:N", scale=None, legend=None),
         )
