@@ -3303,8 +3303,11 @@ class DataVisualizer:
                     fact = int((reg_sub["Тип файла"] == "ЗП").sum())
                     pf = (fact / plan * 100) if plan > 0 else 0.0
                 
+                # <-- НОВОЕ: преобразуем в длинное название
+                long_reg_name = self._get_long_region(reg)
+                
                 heatmap_data.append({
-                    "Регион": reg,
+                    "Регион": long_reg_name,
                     "Месяц": month_label,
                     "ПФ, %": round(pf, 1)
                 })
