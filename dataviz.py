@@ -245,12 +245,12 @@ class DataVisualizer:
         
         return filtered
                                
-    
+
     def _get_long_region(self, short_code):
-        """Преобразует короткий код региона в длинное название"""
         if pd.isna(short_code) or short_code == '':
             return short_code
-        return self.region_mapping.get(str(short_code).strip().upper(), short_code)
+        clean_code = str(short_code).strip().upper().replace('\xa0', ' ').strip()
+        return self.region_mapping.get(clean_code, short_code)
 
     # def create_project_summary(self, df):
     #     """
