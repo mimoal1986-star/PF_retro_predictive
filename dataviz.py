@@ -3303,11 +3303,9 @@ class DataVisualizer:
                     fact = int((reg_sub["Тип файла"] == "ЗП").sum())
                     pf = (fact / plan * 100) if plan > 0 else 0.0
                 
-                # <-- НОВОЕ: преобразуем в длинное название
-                long_reg_name = self._get_long_region(reg)
-                
                 heatmap_data.append({
-                    "Регион": long_reg_name,
+                    "Регион": reg,  # Короткий код для оси Y
+                    "Регион_полный": self._get_long_region(reg),  # Длинное название для tooltip
                     "Месяц": month_label,
                     "ПФ, %": round(pf, 1)
                 })
@@ -3341,7 +3339,11 @@ class DataVisualizer:
                 ),
                 legend=alt.Legend(title="ПФ, %", orient="right")
             ),
-            tooltip=["Регион", "Месяц", "ПФ, %"]
+            tooltip=[
+                alt.Tooltip("Регион_полный:N", title="Регион"),
+                alt.Tooltip("Месяц:N", title="Месяц"),
+                alt.Tooltip("ПФ, %:Q", title="ПФ, %")
+            ]
         )
 
         # Текст поверх прямоугольников
