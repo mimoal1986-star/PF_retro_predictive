@@ -3839,18 +3839,18 @@ class DataVisualizer:
         # Передаем анализ проблемных регионов
         if region_success_analysis:
             context += "=== АНАЛИЗ ПРОБЛЕМНЫХ РЕГИОНОВ ===\n"
-            context += "(Примечание: 'Длительность' — это среднее количество дней по визитам в регионе, поэтому значение может быть дробным)\n"
+            context += "(Примечание: 'Длит. проекта' — это среднее количество дней, которое длится проект в этом регионе. Значение может быть дробным, так как усредняется по нескольким проектам)\n"
             
             for ra in region_success_analysis:
                 context += f"Регион {ra['name']}:\n"
                 context += f"  - План визитов: {ra['plan_total']} шт., Факт: {ra['fact_total']} шт.\n"
                 context += f"  - Динамика: {ra['trend']}\n"
-                context += f"  - Успешные месяцы (ПФ 100%, {ra['good_count']} шт): Длит. {ra['avg_good_dur']} дн., Цена {ra['avg_good_tp']} руб., Нагрузка {ra['avg_good_load']} шт/RS\n"
-                context += f"  - Провальные месяцы (ПФ < 80%, {ra['bad_count']} шт): Длит. {ra['avg_bad_dur']} дн., Цена {ra['avg_bad_tp']} руб., Нагрузка {ra['avg_bad_load']} шт/RS\n"
+                context += f"  - Успешные месяцы (ПФ 100%, {ra['good_count']} шт): Длит. проекта {ra['avg_good_dur']} дн., Цена {ra['avg_good_tp']} руб., Нагрузка {ra['avg_good_load']} шт/RS\n"
+                context += f"  - Провальные месяцы (ПФ < 80%, {ra['bad_count']} шт): Длит. проекта {ra['avg_bad_dur']} дн., Цена {ra['avg_bad_tp']} руб., Нагрузка {ra['avg_bad_load']} шт/RS\n"
                 
                 if "benchmark" in ra:
                     b = ra["benchmark"]
-                    context += f"  - Бенчмарк по региону (медиана других проектов): Длит. {b['dur']} дн., Цена {b['price']} руб., Нагрузка {b['load']} шт/RS\n"
+                    context += f"  - Бенчмарк по региону (медиана других проектов): Длит. проекта {b['dur']} дн., Цена {b['price']} руб., Нагрузка {b['load']} шт/RS\n"
             context += "\n"
 
         # Добавляем проблемных RS
