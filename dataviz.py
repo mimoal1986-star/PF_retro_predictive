@@ -3298,14 +3298,16 @@ class DataVisualizer:
                 
                 if reg_sub.empty:
                     pf = 0.0
+                    has_plan = False
                 else:
                     plan = len(reg_sub)
                     fact = int((reg_sub["Тип файла"] == "ЗП").sum())
                     pf = (fact / plan * 100) if plan > 0 else 0.0
-                
+                    has_plan = True
+                    
                 heatmap_data.append({
-                    "Регион": reg,  # Короткий код для оси Y
-                    "Регион_полный": self._get_long_region(reg),  # Длинное название для tooltip
+                    "Регион": reg,
+                    "Регион_полный": self._get_long_region(reg),
                     "Месяц": month_label,
                     "ПФ, %": round(pf, 1),
                     "Есть_план": has_plan
