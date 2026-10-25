@@ -3329,24 +3329,33 @@ class DataVisualizer:
             )
         )
 
+
         # Прямоугольники (цвет)
-        rect = base.mark_rect(cornerRadius=2).encode(
-            color=alt.Color(
-                "ПФ, %:Q",
-                scale=alt.Scale(
-                    domain=[0, 50, 100],
-                    range=["#F9F9F9", "#C9C0E8", "#7C6BC7"] # Белый -> Светло-фиолетовый -> Пастельный фиолетовый
+        rect = base.mark_rect(
+            cornerRadius=2,
+            stroke="#D3D3D3",  # Серая обводка для сетки
+            strokeWidth=0.5
+        ).encode(
+            color=alt.condition(
+                alt.datum["ПФ, %"] == alt.datum["ПФ, %"],  # Проверка на NaN
+                alt.Color(
+                    "ПФ, %:Q",
+                    scale=alt.Scale(
+                        domain=[0, 50, 100],
+                        range=["#F9F9F9", "#C9C0E8", "#7C6BC7"]  # Твой градиент
+                    ),
+                    legend=alt.Legend(title="ПФ, %", orient="right")
                 ),
-                legend=alt.Legend(title="ПФ, %", orient="right")
+                alt.value("#F0F0F0")  # Цвет для пустых ячеек (светло-серый)
             ),
             tooltip=[
                 alt.Tooltip("Регион_полный:N", title="Регион"),
                 alt.Tooltip("Месяц:N", title="Месяц"),
-                alt.Tooltip("ПФ, %:Q", title="ПФ, %")
+                alt.Tooltip("ПФ, %:Q", title="ПФ, %", format=".0f")
             ]
         )
 
-        # Текст поверх прямоугольников
+        # Текст поверх прямоугольников (скрываем на пустых)
         text = base.mark_text(
             align="center", 
             baseline="middle", 
@@ -3354,11 +3363,15 @@ class DataVisualizer:
             fontSize=14,
             dy=1
         ).encode(
-            text=alt.Text("ПФ, %:Q", format=".0f"),
+            text=alt.condition(
+                alt.datum["ПФ, %"] == alt.datum["ПФ, %"],  # Проверка на NaN
+                alt.Text("ПФ, %:Q", format=".0f"),
+                alt.value("")  # Пустой текст, если плана не было
+            ),
             color=alt.condition(
                 alt.datum["ПФ, %"] > 50,
-                alt.value("white"),      # На фиолетовом фоне — белый текст
-                alt.value("#333333")     # На белом/светлом фоне — темный текст
+                alt.value("white"),
+                alt.value("#333333")
             )
         )
 
