@@ -3308,6 +3308,7 @@ class DataVisualizer:
                     "Регион_полный": self._get_long_region(reg),  # Длинное название для tooltip
                     "Месяц": month_label,
                     "ПФ, %": round(pf, 1)
+                    "Есть_план": has_plan
                 })
 
         heatmap_df = pd.DataFrame(heatmap_data)
@@ -3333,20 +3334,20 @@ class DataVisualizer:
         # Прямоугольники (цвет)
         rect = base.mark_rect(
             cornerRadius=2,
-            stroke="#D3D3D3",  # Серая обводка для сетки
+            stroke="#D3D3D3",
             strokeWidth=0.5
         ).encode(
             color=alt.condition(
-                alt.datum["ПФ, %"] == alt.datum["ПФ, %"],  # Проверка на NaN
+                alt.datum["Есть_план"] == True,
                 alt.Color(
                     "ПФ, %:Q",
                     scale=alt.Scale(
                         domain=[0, 50, 100],
-                        range=["#F9F9F9", "#C9C0E8", "#7C6BC7"]  # Твой градиент
+                        range=["#F9F9F9", "#C9C0E8", "#7C6BC7"]
                     ),
                     legend=alt.Legend(title="ПФ, %", orient="right")
                 ),
-                alt.value("#F0F0F0")  # Цвет для пустых ячеек (светло-серый)
+                alt.value("#F0F0F0")  # Если плана нет — светло-серый
             ),
             tooltip=[
                 alt.Tooltip("Регион_полный:N", title="Регион"),
@@ -3364,9 +3365,9 @@ class DataVisualizer:
             dy=1
         ).encode(
             text=alt.condition(
-                alt.datum["ПФ, %"] == alt.datum["ПФ, %"],  # Проверка на NaN
+                alt.datum["Есть_план"] == True,  # <-- Показываем цифру только если есть план
                 alt.Text("ПФ, %:Q", format=".0f"),
-                alt.value("")  # Пустой текст, если плана не было
+                alt.value("")  # Иначе пустой текст
             ),
             color=alt.condition(
                 alt.datum["ПФ, %"] > 50,
