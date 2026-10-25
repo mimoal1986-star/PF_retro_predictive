@@ -3307,7 +3307,7 @@ class DataVisualizer:
                     "Регион": reg,  # Короткий код для оси Y
                     "Регион_полный": self._get_long_region(reg),  # Длинное название для tooltip
                     "Месяц": month_label,
-                    "ПФ, %": round(pf, 1)
+                    "ПФ, %": round(pf, 1),
                     "Есть_план": has_plan
                 })
 
