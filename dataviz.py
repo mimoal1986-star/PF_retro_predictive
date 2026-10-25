@@ -3675,10 +3675,10 @@ class DataVisualizer:
         except Exception as e:
             return f"Ошибка получения токена GigaChat: {e}"
 
-        # 3. Функция сбора статистики (худшие + эталон)
-        def get_stats(df, group_col, top_n=3):
+        # 3. Сбор статистики по клиенту (история)
+        def get_stats(df, group_col):
             if group_col not in df.columns:
-                return [], None
+                return []
             
             stats = []
             for name, group in df.groupby(group_col):
@@ -3690,72 +3690,184 @@ class DataVisualizer:
                 
                 dur = group["Длительность"].mean() if "Длительность" in group.columns else 0
                 tp_plan = group["План ТП, руб"].mean() if "План ТП, руб" in group.columns else 0
+                rs_load = fact / group["RS"].dropna().nunique() if group["RS"].dropna().nunique() > 0 else 0
                 
-                stats.append({"name": str(name), "pf": round(pf, 1), "dur": round(dur, 1), "tp": round(tp_plan, 1)})
+                stats.append({"name": str(name), "pf": round(pf, 1), "dur": round(dur, 1), "tp": round(tp_plan, 1), "load": round(rs_load, 1)})
             
             stats.sort(key=lambda x: x['pf'])
-            worst = [s for s in stats if s['pf'] < 80][:top_n]
-            best = stats[-1] if stats else None
+            return stats
+
+        all_regions = get_stats(df_client_all, 'Регион short')
+        all_rs = get_stats(df_client_all, 'ЭМ')
+
+        # 4. Бенчмаркинг по региону (медианы по другим проектам из cleaned_data)
+        regional_benchmark = {}
+        try:
+            other_projects = st.session_state.cleaned_data.get('полевые_проекты')
+            if other_projects is not None and not other_projects.empty:
+                # Исключаем текущего клиента
+                others = other_projects[other_projects['Имя клиента'].astype(str).str.strip() != str(client_name).strip()]
+                
+                if not others.empty:
+                    # Группируем по региону и считаем медианы
+                    for reg_name, group in others.groupby('Регион short'):
+                        reg_clean = str(reg_name).strip()
+                        if not reg_clean: continue
+                        
+                        # Цена (используем Оплата план средн. если есть, иначе План ТП)
+                        if 'Оплата план средн., руб.' in group.columns:
+                            prices = group['Оплата план средн., руб.'].dropna()
+                        elif 'План ТП, руб' in group.columns:
+                            prices = group['План ТП, руб'].dropna()
+                        else:
+                            prices = pd.Series()
+                        
+                        median_price = prices.median() if not prices.empty else 0
+                        
+                        # Длительность
+                        durations = group['Длительность'].dropna() if 'Длительность' in group.columns else pd.Series()
+                        median_dur = durations.median() if not durations.empty else 0
+                        
+                        # Нагрузка (кол-во анкет на 1 RS)
+                        rs_counts = group.groupby('RS').size()
+                        median_load = rs_counts.median() if not rs_counts.empty else 0
+                        
+                        if median_price > 0 or median_dur > 0:
+                            regional_benchmark[reg_clean] = {
+                                "price": round(median_price, 1),
+                                "dur": round(median_dur, 1),
+                                "load": round(median_load, 1)
+                            }
+        except Exception:
+            pass # Если нет данных, пропускаем бенчмарк
+
+        # 5. Анализ успешных/провальных периодов по проблемным регионам (частотный анализ)
+        region_success_analysis = []
+        for r in all_regions:
+            if r['pf'] >= 80:
+                continue # Пропускаем успешные регионы
             
-            return worst, best
+            reg_data = df_client_all[df_client_all['Регион short'].astype(str) == r['name']]
+            
+            good_months = []
+            bad_months = []
+            
+            for y, m in sorted(set((int(y), int(m)) for y, m in reg_data[['Год', 'Месяц']].dropna().itertuples(index=False, name=None))):
+                sub = reg_data[(reg_data['Год'] == y) & (reg_data['Месяц'] == m)]
+                if sub.empty: continue
+                
+                plan = len(sub)
+                fact = int((sub["Тип файла"] == "ЗП").sum())
+                pf = (fact / plan * 100) if plan > 0 else 0
+                
+                dur = sub["Длительность"].mean() if "Длительность" in sub.columns else 0
+                tp = sub["План ТП, руб"].mean() if "План ТП, руб" in sub.columns else 0
+                rs_cnt = sub["RS"].dropna().nunique()
+                load = fact / rs_cnt if rs_cnt > 0 else 0
+                
+                month_info = {"pf": pf, "dur": dur, "tp": tp, "load": load}
+                
+                if pf == 100:
+                    good_months.append(month_info)
+                elif pf < 80:
+                    bad_months.append(month_info)
+            
+            # Считаем средние для хороших и плохих (если есть хотя бы по 1 месяцу)
+            if good_months and bad_months:
+                avg_good_dur = sum([m['dur'] for m in good_months]) / len(good_months)
+                avg_good_tp = sum([m['tp'] for m in good_months]) / len(good_months)
+                avg_good_load = sum([m['load'] for m in good_months]) / len(good_months)
+                
+                avg_bad_dur = sum([m['dur'] for m in bad_months]) / len(bad_months)
+                avg_bad_tp = sum([m['tp'] for m in bad_months]) / len(bad_months)
+                avg_bad_load = sum([m['load'] for m in bad_months]) / len(bad_months)
+                
+                analysis_entry = {
+                    "name": r['name'],
+                    "good_count": len(good_months),
+                    "bad_count": len(bad_months),
+                    "avg_good_dur": round(avg_good_dur, 1),
+                    "avg_good_tp": round(avg_good_tp, 1),
+                    "avg_good_load": round(avg_good_load, 1),
+                    "avg_bad_dur": round(avg_bad_dur, 1),
+                    "avg_bad_tp": round(avg_bad_tp, 1),
+                    "avg_bad_load": round(avg_bad_load, 1)
+                }
+                
+                # Добавляем бенчмарк, если есть
+                if r['name'] in regional_benchmark:
+                    analysis_entry["benchmark"] = regional_benchmark[r['name']]
+                
+                region_success_analysis.append(analysis_entry)
 
-        # 4. Собираем данные
-        worst_regions, best_region = get_stats(df_client_all, 'Регион short')
-        worst_dsm, _ = get_stats(df_client_all, 'ЗОД')
-        worst_asm, _ = get_stats(df_client_all, 'АСС')
-        worst_rs, _ = get_stats(df_client_all, 'ЭМ')
-
-        # 5. Формируем контекст
+        # 6. Формируем контекст
         context = f"=== КЛИЕНТ: {client_name} ===\n"
-        context += f"Средний ПФ по проекту: {kpi['pf_percent']}%\n"
+        context += f"Средний ПФ за всю историю: {kpi['pf_percent']}%\n"
         context += f"Средняя длительность: {kpi.get('duration_avg', 0)} дн.\n"
-        context += f"Средняя цена (План ТП): {kpi['plan_tp_avg']} руб.\n\n"
-        
-        if best_region:
-            context += f"=== ЭТАЛОН (Лучший регион) ===\n{best_region['name']}: ПФ {best_region['pf']}%, Длит. {best_region['dur']} дн., Цена {best_region['tp']} руб.\n\n"
+        context += f"Средняя цена (План ТП): {kpi['plan_tp_avg']} руб.\n"
+        context += f"Средняя нагрузка на 1 RS: {kpi['ankets_per_rs']} шт.\n\n"
 
-        if worst_regions:
-            context += "=== ПРОБЛЕМНЫЕ РЕГИОНЫ (ПФ < 80%) ===\n"
-            for r in worst_regions:
-                context += f"{r['name']}: ПФ {r['pf']}%, Длит. {r['dur']} дн., Цена {r['tp']} руб.\n"
-        
-        if worst_dsm:
-            context += "\n=== ПРОБЛЕМНЫЕ DSM ===\n"
-            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_dsm]) + "\n"
-        
-        if worst_asm:
-            context += "\n=== ПРОБЛЕМНЫЕ ASM ===\n"
-            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_asm]) + "\n"
+        # Добавляем данные текущего проекта (если есть)
+        if is_current_project:
+            context += "=== ТЕКУЩИЙ ПРОЕКТ (данные из ПФ проекты) ===\n"
+            current_data = st.session_state.visit_report.get('calculated_data')
+            
+            if current_data is not None and not current_data.empty:
+                client_current = current_data[current_data['Клиент'].astype(str).str.strip() == str(client_name).strip()]
+                if not client_current.empty:
+                    cur_plan = client_current['План проекта, шт.'].sum()
+                    cur_fact = client_current['Факт проекта, шт.'].sum()
+                    cur_pf = (cur_fact / cur_plan * 100) if cur_plan > 0 else 0
+                    cur_dur = client_current['Длительность'].mean() if 'Длительность' in client_current.columns else 0
+                    cur_tp = client_current['Оплата план средн., руб.'].mean() if 'Оплата план средн., руб.' in client_current.columns else 0
+                    context += f"План текущего проекта: {cur_plan:.0f} шт.\n"
+                    context += f"Факт текущего проекта: {cur_fact:.0f} шт.\n"
+                    context += f"Текущий ПФ: {cur_pf:.1f}%\n"
+                    context += f"Текущая длительность: {cur_dur:.1f} дн.\n"
+                    context += f"Текущая цена: {cur_tp:.1f} руб.\n\n"
 
-        if worst_rs:
-            context += "\n=== ПРОБЛЕМНЫЕ RS ===\n"
-            context += ", ".join([f"{r['name']} ({r['pf']}%)" for r in worst_rs]) + "\n"
+        # Передаем анализ успешных/провальных месяцев + Бенчмарк
+        if region_success_analysis:
+            context += "=== АНАЛИЗ ПРОБЛЕМНЫХ РЕГИОНОВ ===\n"
+            for ra in region_success_analysis:
+                context += f"Регион {ra['name']}:\n"
+                context += f"  - Успешные месяцы (ПФ 100%, {ra['good_count']} шт): Длит. {ra['avg_good_dur']} дн., Цена {ra['avg_good_tp']} руб., Нагрузка {ra['avg_good_load']} шт/RS\n"
+                context += f"  - Провальные месяцы (ПФ < 80%, {ra['bad_count']} шт): Длит. {ra['avg_bad_dur']} дн., Цена {ra['avg_bad_tp']} руб., Нагрузка {ra['avg_bad_load']} шт/RS\n"
+                
+                if "benchmark" in ra:
+                    b = ra["benchmark"]
+                    context += f"  - Бенчмарк по региону (медиана других проектов): Длит. {b['dur']} дн., Цена {b['price']} руб., Нагрузка {b['load']} шт/RS\n"
+            context += "\n"
 
-        # Примечание, чтобы ИИ не думал, что данные урезаны ошибочно
-        context += "\n(Примечание: регионы, DSM, ASM и RS с ПФ > 80% не указаны, так как не являются проблемными)\n"
+        # Добавляем проблемных RS
+        bad_rs = [r for r in all_rs if r['pf'] < 80]
+        if bad_rs:
+            context += "=== ПРОБЛЕМНЫЕ RS (ПФ < 80%) ===\n"
+            for r in bad_rs:
+                context += f"{r['name']}: ПФ {r['pf']}%\n"
+            context += "\n"
 
-        # Динамика по месяцам (берем последние 3 месяца для анализа тренда)
-        context += "\n=== ПОСЛЕДНИЕ МЕСЯЦЫ (Динамика) ===\n"
-        last_3_months = table.iloc[:, -3:]
-        context += last_3_months.to_string()
+        context += "=== ПОМЕСЯЧНАЯ ДИНАМИКА ===\n"
+        context += table.to_string()
 
-        # 6. Логика ветвления
+        # 7. Логика ветвления (гибкий промпт)
         if is_current_project:
             role_task = "Ты — антикризисный менеджер. Твоя ЦЕЛЬ — дожать выполнение ТЕКУЩЕГО проекта до 100%."
             analysis_focus = """
             АЛГОРИТМ (следуй шагам):
-            1. Посмотри на последние 3 месяца. Идет ли падение ПФ в конце? Если да — это тревожный сигнал.
-            2. Сравни проблемные регионы с эталоном. Если длительность в проблемных регионах НИЖЕ, чем в эталоне → проблема в сжатых сроках. Если цена НИЖЕ → низкая мотивация.
-            3. Если конкретный RS (из списка) постоянно в проблемных — рекомендую заменить его или дать в помощь второго сотрудника.
+            1. Оцени текущий ПФ. Если он < 90%, найди главную причину.
+            2. Сравни текущие показатели проблемных регионов с их успешными периодами в прошлом, а также с бенчмарком по региону (медиана других проектов). Найди метрику, которая отличается сильнее всего (длительность, цена или нагрузка). Сделай вывод на основе этого отличия.
+            3. Если есть проблемные RS — предложи их заменить или дать в помощь второго сотрудника.
             """
         else:
-            role_task = "Ты — стратегический аудитор. Клиент не в проекте. Твоя ЦЕЛЬ — выявить ошибки прошлого для запуска нового проекта."
+            role_task = "Ты — стратегический аудитор. Клиент не в текущем проекте. Твоя ЦЕЛЬ — выявить ошибки прошлого для запуска нового проекта."
             analysis_focus = """
             АЛГОРИТМ (следуй шагам):
-            1. Оцени общую картину за весь период.
-            2. Выдели системных «должников» (регионы, RS). Кого стоит заменить или не допускать к новому проекту?
-            3. Проанализируй тренд по месяцам. Если проект стабильно проседал в определенные месяцы — учти это при планировании сроков.
-            4. Дай рекомендации по бюджету и срокам для БУДУЩЕГО проекта, опираясь на лучший регион (эталон).
+            1. Оцени общую картину за весь период по этому клиенту.
+            2. Найди системные ошибки: какие регионы или RS стабильно показывают ПФ < 80%? Кого стоит не допускать к новому проекту или заменить?
+            3. Для проблемных регионов проанализируй их успешные и провальные месяцы, а также сравни с бенчмарком по региону (медиана других проектов). Найди ключевое отличие (длительность, цена или нагрузка). Сделай вывод: что именно нужно изменить в будущем проекте, чтобы повторить успех.
+            4. Проанализируй тренд по месяцам. Если проект проседал в определенные месяцы — учти это при планировании.
+            5. Дай рекомендации по бюджету, срокам и составу команды для БУДУЩЕГО проекта.
             """
 
         prompt = f"""
@@ -3766,16 +3878,16 @@ class DataVisualizer:
         ФОРМАТ ОТВЕТА (строго без воды):
         - **Статус:** (Оценка ПФ: ниже/выше нормы)
         - **Проблемные точки:** (Конкретные регионы/RS и их цифры)
-        - **Причина:** (На основе сравнения длительности, цены и тренда с эталоном)
+        - **Причина:** (На основе сравнения успешных/провальных периодов и бенчмарка)
         - **Действие:** (Что сделать: продлить сроки, повысить цену, заменить сотрудника и т.д.)
         
-        ЗАПРЕЩАЕТСЯ: общие фразы про "мотивацию" или "усиление контроля".
+        ЗАПРЕЩАЕТСЯ: общие фразы про "мотивацию" или "усиление контроля". Сравнивай цифры.
         
         Данные:
         {context}
         """
 
-        # 7. Вызов GigaChat
+        # 8. Вызов GigaChat
         try:
             client = openai.OpenAI(
                 api_key=access_token,
@@ -3784,7 +3896,7 @@ class DataVisualizer:
             )
             
             response = client.chat.completions.create(
-                model="GigaChat-2-Pro",  # Более умная модель
+                model="GigaChat-2-Pro",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1500
