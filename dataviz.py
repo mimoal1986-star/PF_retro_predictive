@@ -3799,23 +3799,37 @@ class DataVisualizer:
             st.info("Нет данных для отображения.")
             return
 
-        # --- Фильтр по регионам ---
-        region_col = "Регион short" if "Регион short" in df_dataset.columns else None
-        if region_col is None:
+        # --- Фильтр по регионам (показываем Регион long, фильтруем по Регион short) ---
+        if "Регион short" not in df_dataset.columns:
             st.warning("В датасете нет колонки 'Регион short'.")
             return
 
-        all_regions = sorted(
-            df_dataset[region_col].dropna().astype(str).unique().tolist()
+        df_for_filter = df_dataset.copy()
+        df_for_filter["_region_short"] = df_for_filter["Регион short"].astype(str).str.strip()
+
+        if "Регион long" in df_for_filter.columns:
+            df_for_filter["_region_long"] = df_for_filter["Регион long"].astype(str).str.strip()
+        else:
+            df_for_filter["_region_long"] = df_for_filter["_region_short"].apply(self._get_long_region)
+
+        # Справочник short -> long (берём первое непустое long для каждого short)
+        short_to_long = (
+            df_for_filter[["_region_short", "_region_long"]]
+            .dropna()
+            .drop_duplicates(subset=["_region_short"])
+            .set_index("_region_short")["_region_long"]
+            .to_dict()
         )
-        if not all_regions:
+
+        all_regions_long = sorted(set(short_to_long.values()))
+        if not all_regions_long:
             st.warning("В датасете нет регионов.")
             return
 
         with st.form("retro_regions_filter_form"):
-            selected_regions = st.multiselect(
+            selected_regions_long = st.multiselect(
                 "Регион (пусто = все регионы)",
-                options=all_regions,
+                options=all_regions_long,
                 default=st.session_state.get("retro_regions_selected", []),
                 key="retro_regions_filter",
             )
@@ -3824,12 +3838,21 @@ class DataVisualizer:
             )
 
         if apply_region_filter:
-            st.session_state.retro_regions_selected = selected_regions
+            st.session_state.retro_regions_selected = selected_regions_long
 
-        applied_regions = st.session_state.get("retro_regions_selected", [])
+        applied_regions_long = st.session_state.get("retro_regions_selected", [])
 
-        if applied_regions:
-            df_filtered = df_dataset[df_dataset[region_col].astype(str).isin(applied_regions)].copy()
+        if applied_regions_long:
+            # long -> set short
+            long_to_short = {}
+            for s, l in short_to_long.items():
+                long_to_short.setdefault(l, set()).add(s)
+
+            selected_shorts = set()
+            for l in applied_regions_long:
+                selected_shorts |= long_to_short.get(l, set())
+
+            df_filtered = df_dataset[df_dataset["Регион short"].astype(str).str.strip().isin(selected_shorts)].copy()
         else:
             df_filtered = df_dataset.copy()
 
@@ -3840,7 +3863,7 @@ class DataVisualizer:
         # --- KPI ---
         st.markdown("### 📊 Ключевые показатели")
 
-        report_key = tuple(applied_regions) if applied_regions else ("__ALL__",)
+        report_key = tuple(applied_regions_long) if applied_regions_long else ("__ALL__",)
 
         if st.button("Рассчитать", type="primary", key="retro_regions_calc_btn"):
             pairs = sorted(set(
