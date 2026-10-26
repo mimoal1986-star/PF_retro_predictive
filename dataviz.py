@@ -3637,22 +3637,14 @@ class DataVisualizer:
             client = st.selectbox(
                 "Клиент", options=clients, key="retro_clients_client"
             )
-            apply_client_filter = st.form_submit_button(
-                "✅ Применить", type="primary", use_container_width=True
+            apply_and_calc = st.form_submit_button(
+                "✅ Применить и рассчитать", type="primary", use_container_width=True
             )
 
-        if apply_client_filter:
+        if apply_and_calc:
             st.session_state.retro_clients_selected = client
-
-        selected_client = st.session_state.get("retro_clients_selected", clients[0])
-        client = selected_client
-
-        df_client_all = df_dataset[df_dataset["Клиент"] == selected_client]
-
-        st.markdown("### 📊 Ключевые показатели")
-        report_key = (selected_client,)
-
-        if st.button("Рассчитать", type="primary", key="retro_calc_btn"):
+            df_client_all = df_dataset[df_dataset["Клиент"] == client]
+            report_key = (client,)
             if df_client_all.empty:
                 st.session_state.analytics_report = {
                     "key": report_key, "empty": True, "kpi": None, "table": None,
@@ -3680,12 +3672,18 @@ class DataVisualizer:
                 table = self._compute_monthly_table_retro(df_client_all, months)
                 st.session_state.analytics_report = {
                     "key": report_key, "empty": False, "kpi": kpi, "table": table,
-                    "months": months,  # <-- СОХРАНЯЕМ МЕСЯЦЫ В КЭШ
+                    "months": months,
                 }
 
+        selected_client = st.session_state.get("retro_clients_selected", clients[0])
+        client = selected_client
+        df_client_all = df_dataset[df_dataset["Клиент"] == selected_client]
+        report_key = (selected_client,)
+
+        st.markdown("### 📊 Ключевые показатели")
         report = st.session_state.get("analytics_report")
         if report is None or report["key"] != report_key:
-            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+            st.info("Нажмите «Применить и рассчитать», чтобы построить отчёт.")
         elif report["empty"]:
             st.info("Нет данных по выбранному клиенту.")
         else:
@@ -3833,67 +3831,74 @@ class DataVisualizer:
                 default=st.session_state.get("retro_regions_selected", []),
                 key="retro_regions_filter",
             )
-            apply_region_filter = st.form_submit_button(
-                "✅ Применить", type="primary", use_container_width=True
+            apply_and_calc = st.form_submit_button(
+                "✅ Применить и рассчитать", type="primary", use_container_width=True
             )
 
-        if apply_region_filter:
+        if apply_and_calc:
             st.session_state.retro_regions_selected = selected_regions_long
-
-        applied_regions_long = st.session_state.get("retro_regions_selected", [])
-
-        if applied_regions_long:
-            # long -> set short
             long_to_short = {}
             for s, l in short_to_long.items():
                 long_to_short.setdefault(l, set()).add(s)
+            selected_shorts = set()
+            for l in selected_regions_long:
+                selected_shorts |= long_to_short.get(l, set())
+            df_calc = (
+                df_dataset[df_dataset["Регион short"].astype(str).str.strip().isin(selected_shorts)].copy()
+                if selected_regions_long
+                else df_dataset.copy()
+            )
+            report_key = tuple(selected_regions_long) if selected_regions_long else ("__ALL__",)
 
+            if df_calc.empty:
+                st.session_state.analytics_report_regions = {
+                    "key": report_key, "empty": True, "kpi": None, "table": None, "months": [],
+                }
+            else:
+                pairs = sorted(set(
+                    (int(y), int(m)) for y, m in df_calc[["Год", "Месяц"]]
+                    .dropna().itertuples(index=False, name=None)
+                ))
+                if pairs:
+                    y_min, m_min = pairs[0]
+                    y_max, m_max = pairs[-1]
+                    months = []
+                    y, m = y_min, m_min
+                    while (y, m) <= (y_max, m_max):
+                        months.append((y, m))
+                        if m == 12:
+                            y, m = y + 1, 1
+                        else:
+                            m += 1
+                else:
+                    months = []
+                kpi = self._compute_kpi_retro(df_calc, months)
+                table = self._compute_monthly_table_retro(df_calc, months)
+                st.session_state.analytics_report_regions = {
+                    "key": report_key, "empty": False, "kpi": kpi, "table": table, "months": months,
+                }
+
+        applied_regions_long = st.session_state.get("retro_regions_selected", [])
+        if applied_regions_long:
+            long_to_short = {}
+            for s, l in short_to_long.items():
+                long_to_short.setdefault(l, set()).add(s)
             selected_shorts = set()
             for l in applied_regions_long:
                 selected_shorts |= long_to_short.get(l, set())
-
-            df_filtered = df_dataset[df_dataset["Регион short"].astype(str).str.strip().isin(selected_shorts)].copy()
+            df_filtered = df_dataset[
+                df_dataset["Регион short"].astype(str).str.strip().isin(selected_shorts)
+            ].copy()
         else:
             df_filtered = df_dataset.copy()
 
-        if df_filtered.empty:
-            st.info("Нет данных по выбранным регионам.")
-            return
-
-        # --- KPI ---
-        st.markdown("### 📊 Ключевые показатели")
-
         report_key = tuple(applied_regions_long) if applied_regions_long else ("__ALL__",)
 
-        if st.button("Рассчитать", type="primary", key="retro_regions_calc_btn"):
-            pairs = sorted(set(
-                (int(y), int(m)) for y, m in df_filtered[["Год", "Месяц"]]
-                .dropna().itertuples(index=False, name=None)
-            ))
-            if pairs:
-                y_min, m_min = pairs[0]
-                y_max, m_max = pairs[-1]
-                months = []
-                y, m = y_min, m_min
-                while (y, m) <= (y_max, m_max):
-                    months.append((y, m))
-                    if m == 12:
-                        y, m = y + 1, 1
-                    else:
-                        m += 1
-            else:
-                months = []
-
-            kpi = self._compute_kpi_retro(df_filtered, months)
-            table = self._compute_monthly_table_retro(df_filtered, months)
-            st.session_state.analytics_report_regions = {
-                "key": report_key, "empty": False, "kpi": kpi, "table": table,
-                "months": months,
-            }
+        st.markdown("### 📊 Ключевые показатели")
 
         report = st.session_state.get("analytics_report_regions")
         if report is None or report["key"] != report_key:
-            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+            st.info("Нажмите «Применить и рассчитать», чтобы построить отчёт.")
         else:
             kpi = report["kpi"]
             table = report["table"]
@@ -3994,44 +3999,55 @@ class DataVisualizer:
         all_asm = sorted(df_dataset[asm_col].dropna().astype(str).unique().tolist()) if asm_col else []
 
         with st.form("retro_summary_filter_form"):
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                selected_clients = st.multiselect(
-                    "Клиент (пусто = все)",
-                    options=all_clients,
-                    default=st.session_state.get("retro_summary_clients_applied", []),
-                    key="retro_summary_clients",
-                )
-
-            with col2:
-                selected_regions = st.multiselect(
-                    "Регион long (пусто = все)",
-                    options=all_regions,
-                    default=st.session_state.get("retro_summary_regions_applied", []),
-                    key="retro_summary_regions",
-                )
-
-            with col3:
-                if asm_col:
-                    selected_asm = st.multiselect(
-                        "АСМ (пусто = все)",
-                        options=all_asm,
-                        default=st.session_state.get("retro_summary_asm_applied", []),
-                        key="retro_summary_asm",
-                    )
-                else:
-                    selected_asm = []
-                    st.warning("В датасете нет колонки 'ASM'.")
-
-            apply_filters = st.form_submit_button(
-                "✅ Применить фильтры", type="primary", use_container_width=True
+            ...  # мультиселекты не меняются
+            apply_and_calc = st.form_submit_button(
+                "✅ Применить и рассчитать", type="primary", use_container_width=True
             )
 
-        if apply_filters:
+        if apply_and_calc:
             st.session_state.retro_summary_clients_applied = selected_clients
             st.session_state.retro_summary_regions_applied = selected_regions
             st.session_state.retro_summary_asm_applied = selected_asm
+
+            df_calc = df_dataset.copy()
+            if selected_clients:
+                df_calc = df_calc[df_calc["Клиент"].astype(str).isin(selected_clients)]
+            if selected_regions:
+                df_calc = df_calc[df_calc[region_col].astype(str).isin(selected_regions)]
+            if selected_asm and asm_col:
+                df_calc = df_calc[df_calc[asm_col].astype(str).isin(selected_asm)]
+
+            report_key = (
+                tuple(selected_clients), tuple(selected_regions), tuple(selected_asm),
+            )
+
+            if df_calc.empty:
+                st.session_state.analytics_report_summary = {
+                    "key": report_key, "empty": True, "kpi": None, "table": None, "months": [],
+                }
+            else:
+                pairs = sorted(set(
+                    (int(y), int(m)) for y, m in df_calc[["Год", "Месяц"]]
+                    .dropna().itertuples(index=False, name=None)
+                ))
+                if pairs:
+                    y_min, m_min = pairs[0]
+                    y_max, m_max = pairs[-1]
+                    months = []
+                    y, m = y_min, m_min
+                    while (y, m) <= (y_max, m_max):
+                        months.append((y, m))
+                        if m == 12:
+                            y, m = y + 1, 1
+                        else:
+                            m += 1
+                else:
+                    months = []
+                kpi = self._compute_kpi_retro(df_calc, months)
+                table = self._compute_monthly_table_retro(df_calc, months)
+                st.session_state.analytics_report_summary = {
+                    "key": report_key, "empty": False, "kpi": kpi, "table": table, "months": months,
+                }
 
         applied_clients = st.session_state.get("retro_summary_clients_applied", [])
         applied_regions = st.session_state.get("retro_summary_regions_applied", [])
@@ -4045,47 +4061,15 @@ class DataVisualizer:
         if applied_asm and asm_col:
             df_filtered = df_filtered[df_filtered[asm_col].astype(str).isin(applied_asm)]
 
-        if df_filtered.empty:
-            st.info("Нет данных по выбранным фильтрам.")
-            return
-
-        # --- KPI и таблица ---
-        st.markdown("### 📊 Ключевые показатели")
-
         report_key = (
-            tuple(applied_clients),
-            tuple(applied_regions),
-            tuple(applied_asm),
+            tuple(applied_clients), tuple(applied_regions), tuple(applied_asm),
         )
 
-        if st.button("Рассчитать", type="primary", key="retro_summary_calc_btn"):
-            pairs = sorted(set(
-                (int(y), int(m)) for y, m in df_filtered[["Год", "Месяц"]]
-                .dropna().itertuples(index=False, name=None)
-            ))
-            if pairs:
-                y_min, m_min = pairs[0]
-                y_max, m_max = pairs[-1]
-                months = []
-                y, m = y_min, m_min
-                while (y, m) <= (y_max, m_max):
-                    months.append((y, m))
-                    if m == 12:
-                        y, m = y + 1, 1
-                    else:
-                        m += 1
-            else:
-                months = []
-
-            kpi = self._compute_kpi_retro(df_filtered, months)
-            table = self._compute_monthly_table_retro(df_filtered, months)
-            st.session_state.analytics_report_summary = {
-                "key": report_key, "kpi": kpi, "table": table, "months": months,
-            }
+        st.markdown("### 📊 Ключевые показатели")
 
         report = st.session_state.get("analytics_report_summary")
         if report is None or report["key"] != report_key:
-            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+            st.info("Нажмите «Применить и рассчитать», чтобы построить отчёт.")
             return
 
         kpi = report["kpi"]
