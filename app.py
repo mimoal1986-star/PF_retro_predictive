@@ -1298,7 +1298,7 @@ with tab3:
 
     else:
         tab_retro_clients, tab_retro_regions, tab_retro_dsm, tab_retro_summary, tab_retro_export = st.tabs(
-            ["👥 Клиенты", "🗺️ Регионы", "👤 DSM", "📊 Сводный", "📥 Выгрузка"]
+            ["👥 Клиенты", "🗺️ Регионы", "📊 Сводный", "📥 Выгрузка"]
         )
 
         with tab_retro_clients:
@@ -1306,9 +1306,6 @@ with tab3:
 
         with tab_retro_regions:
             dataviz.create_retro_regions_tab(df_analytics)
-
-        with tab_retro_dsm:
-            dataviz.create_retro_dsm_tab(df_analytics)
 
         with tab_retro_summary:
             dataviz.create_retro_summary_tab(df_analytics)
