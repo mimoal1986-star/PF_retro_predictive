@@ -91,6 +91,14 @@ DEFAULT_STATE = {
     # === Ретро-аналитика ===
     'analytics_df': None,
     'analytics_loaded_at': None,
+    'retro_clients_selected': None,
+    'retro_regions_selected': [],
+    'retro_summary_clients_applied': [],
+    'retro_summary_regions_applied': [],
+    'retro_summary_asm_applied': [],
+    'analytics_report': None,
+    'analytics_report_regions': None,
+    'analytics_report_summary': None,
 }
 
 for key, default_value in DEFAULT_STATE.items():
@@ -1295,22 +1303,21 @@ with tab3:
 
     if df_analytics is None:
         st.info("📌 Загрузите Parquet-файл (report_data.parquet) на вкладке «Загрузка данных»")
-
     else:
-        tab_retro_clients, tab_retro_regions, tab_retro_summary, tab_retro_export = st.tabs(
-            ["👥 Клиенты", "🗺️ Регионы", "📊 Сводный", "📥 Выгрузка"]
+        retro_section = st.radio(
+            "Раздел",
+            ["👥 Клиенты", "🗺️ Регионы", "📊 Сводный", "📥 Выгрузка"],
+            horizontal=True,
+            key="retro_section_radio",
         )
 
-        with tab_retro_clients:
+        if retro_section == "👥 Клиенты":
             dataviz.create_retro_clients_tab(df_analytics)
-
-        with tab_retro_regions:
+        elif retro_section == "🗺️ Регионы":
             dataviz.create_retro_regions_tab(df_analytics)
-
-        with tab_retro_summary:
+        elif retro_section == "📊 Сводный":
             dataviz.create_retro_summary_tab(df_analytics)
-
-        with tab_retro_export:
+        elif retro_section == "📥 Выгрузка":
             dataviz.create_retro_export_tab(df_analytics)
 
 # ==============================================
