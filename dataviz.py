@@ -3306,7 +3306,7 @@ class DataVisualizer:
         }
 
         if df_client_all is None or df_client_all.empty or not months:
-            columns = [self._month_label(y, m) for y, m in reversed(months)] if months else []
+            columns = [self._month_label(y, m) for y, m in months] if months else []
             table = pd.DataFrame(rows, index=columns).T
             table.index.name = "Метрика"
             return table
@@ -3335,7 +3335,7 @@ class DataVisualizer:
             rs = pd.Series(dtype="int64")
             tp = pd.DataFrame(columns=["plan_tp_mean", "fact_tp_mean"])
 
-        for y, m in reversed(months):
+        for y, m in months:
             ym = int(y) * 100 + int(m)
             if ym not in agg.index:
                 for k in rows:
@@ -3372,7 +3372,7 @@ class DataVisualizer:
             rows["ПФ ТП, руб"].append(pf_tp)
             rows["Длительность"].append(avg_dur)
 
-        columns = [self._month_label(y, m) for y, m in reversed(months)]
+        columns = [self._month_label(y, m) for y, m in months]
         table = pd.DataFrame(rows, index=columns).T
         table.index.name = "Метрика"
         return table
