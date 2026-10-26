@@ -3935,13 +3935,146 @@ class DataVisualizer:
             # Тепловая карта по регионам
             with st.expander("🗺️ Тепловая карта ПФ по регионам", expanded=False):
                 self._render_region_heatmap_retro(df_filtered, months)
-    def create_retro_dsm_tab(self, df_dataset):
-        """Ретро-аналитика: вкладка «DSM» (в разработке)"""
-        st.info("В разработке.")
 
-    def create_retro_summary_tab(self, df_dataset):
-        """Ретро-аналитика: вкладка «Сводный» (в разработке)"""
-        st.info("В разработке.")
+    def _render_summary_heatmap(
+        self,
+        df_dataset: pd.DataFrame,
+        months: list,
+        group_col: str,
+        title: str,
+        key: str,
+        top_n: int | None = None,
+    ):
+        """Универсальная тепловая карта ПФ, % по произвольной колонке."""
+        if df_dataset is None or df_dataset.empty or not months:
+            return
+        if group_col not in df_dataset.columns:
+            st.info(f"Нет колонки '{group_col}' для тепловой карты.")
+            return
+
+        df = df_dataset.copy()
+        df["_group"] = df[group_col].astype(str).str.strip()
+        df = df[df["_group"].notna() & (df["_group"] != "") & (df["_group"].str.lower() != "nan")]
+        if df.empty:
+            st.info(f"Нет данных по '{group_col}'.")
+            return
+
+        df["_ym"] = df["Год"].astype(int) * 100 + df["Месяц"].astype(int)
+        df["_is_zp"] = (df["Тип файла"] == "ЗП")
+
+        # Ограничение топ-N по объёму плана
+        if top_n is not None:
+            top_groups = (
+                df.groupby("_group").size().sort_values(ascending=False).head(top_n).index.tolist()
+            )
+            df = df[df["_group"].isin(top_groups)].copy()
+
+        groups_sorted = sorted(df["_group"].unique())
+        months_sorted = [self._month_label(y, m) for y, m in months]
+
+        label_map = {int(y) * 100 + int(m): self._month_label(y, m) for y, m in months}
+        df["_month_label"] = df["_ym"].map(label_map)
+        df = df[df["_month_label"].notna()].copy()
+
+        # groupby (группа, месяц)
+        g = df.groupby(["_group", "_month_label"]).agg(
+            plan=("_ym", "size"),
+            fact=("_is_zp", "sum"),
+        ).reset_index()
+
+        g["pf"] = ((g["fact"] / g["plan"] * 100).where(g["plan"] > 0, 0.0)).round(1)
+
+        pivot_pf = g.pivot_table(
+            index="_group", columns="_month_label", values="pf", aggfunc="first"
+        ).reindex(index=groups_sorted, columns=months_sorted)
+
+        pivot_plan = g.pivot_table(
+            index="_group", columns="_month_label", values="plan", aggfunc="sum"
+        ).reindex(index=groups_sorted, columns=months_sorted)
+
+        rows = []
+        for grp in groups_sorted:
+            pf_row = pivot_pf.loc[grp]
+            plan_row = pivot_plan.loc[grp]
+            for label in months_sorted:
+                pf_val = pf_row.get(label)
+                plan_val = plan_row.get(label)
+                has_plan = bool(pd.notna(plan_val) and plan_val > 0)
+                pf_val = 0.0 if pd.isna(pf_val) else float(pf_val)
+                rows.append({
+                    "Группа": grp,
+                    "Месяц": label,
+                    "ПФ, %": round(pf_val, 1),
+                    "Есть_план": has_plan,
+                })
+
+        heatmap_df = pd.DataFrame(rows)
+
+        st.markdown(f"**{title}**")
+
+        font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+
+        base = alt.Chart(heatmap_df).encode(
+            x=alt.X(
+                "Месяц:N",
+                sort=months_sorted,
+                axis=alt.Axis(orient='top', labelAngle=0, labelFont=font, title=None)
+            ),
+            y=alt.Y(
+                "Группа:N",
+                sort=groups_sorted,
+                axis=alt.Axis(labelFont=font, title=None)
+            )
+        )
+
+        rect = base.mark_rect(
+            cornerRadius=2,
+            stroke="#D3D3D3",
+            strokeWidth=0.5
+        ).encode(
+            color=alt.condition(
+                alt.datum["Есть_план"] == True,
+                alt.Color(
+                    "ПФ, %:Q",
+                    scale=alt.Scale(
+                        domain=[0, 50, 100],
+                        range=["#F9F9F9", "#C9C0E8", "#7C6BC7"]
+                    ),
+                    legend=alt.Legend(title="ПФ, %", orient="right")
+                ),
+                alt.value("#F0F0F0")
+            ),
+            tooltip=[
+                alt.Tooltip("Группа:N", title=group_col),
+                alt.Tooltip("Месяц:N", title="Месяц"),
+                alt.Tooltip("ПФ, %:Q", title="ПФ, %", format=".0f")
+            ]
+        )
+
+        text = base.mark_text(
+            align="center",
+            baseline="middle",
+            font=font,
+            fontSize=12,
+            dy=1
+        ).encode(
+            text=alt.condition(
+                alt.datum["Есть_план"] == True,
+                alt.Text("ПФ, %:Q", format=".0f"),
+                alt.value("")
+            ),
+            color=alt.condition(
+                alt.datum["ПФ, %"] > 50,
+                alt.value("white"),
+                alt.value("#333333")
+            )
+        )
+
+        chart = (rect + text).properties(
+            height=max(200, len(groups_sorted) * 25)
+        ).configure_view(strokeWidth=0).configure_axis(grid=False)
+
+        st.altair_chart(chart, use_container_width=True, key=key)
 
     def create_retro_export_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «Выгрузка датасета»"""
