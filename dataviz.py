@@ -3633,14 +3633,24 @@ class DataVisualizer:
             st.warning("В датасете нет клиентов.")
             return
 
-        client = st.selectbox(
-            "Клиент", options=clients, key="retro_clients_client"
-        )
+        with st.form("retro_clients_filter_form"):
+            client = st.selectbox(
+                "Клиент", options=clients, key="retro_clients_client"
+            )
+            apply_client_filter = st.form_submit_button(
+                "✅ Применить", type="primary", use_container_width=True
+            )
 
-        df_client_all = df_dataset[df_dataset["Клиент"] == client]
+        if apply_client_filter:
+            st.session_state.retro_clients_selected = client
+
+        selected_client = st.session_state.get("retro_clients_selected", clients[0])
+        client = selected_client
+
+        df_client_all = df_dataset[df_dataset["Клиент"] == selected_client]
 
         st.markdown("### 📊 Ключевые показатели")
-        report_key = (client,)
+        report_key = (selected_client,)
 
         if st.button("Рассчитать", type="primary", key="retro_calc_btn"):
             if df_client_all.empty:
@@ -3802,15 +3812,24 @@ class DataVisualizer:
             st.warning("В датасете нет регионов.")
             return
 
-        selected_regions = st.multiselect(
-            "Регион (пусто = все регионы)",
-            options=all_regions,
-            default=[],
-            key="retro_regions_filter",
-        )
+        with st.form("retro_regions_filter_form"):
+            selected_regions = st.multiselect(
+                "Регион (пусто = все регионы)",
+                options=all_regions,
+                default=st.session_state.get("retro_regions_selected", []),
+                key="retro_regions_filter",
+            )
+            apply_region_filter = st.form_submit_button(
+                "✅ Применить", type="primary", use_container_width=True
+            )
 
-        if selected_regions:
-            df_filtered = df_dataset[df_dataset[region_col].astype(str).isin(selected_regions)].copy()
+        if apply_region_filter:
+            st.session_state.retro_regions_selected = selected_regions
+
+        applied_regions = st.session_state.get("retro_regions_selected", [])
+
+        if applied_regions:
+            df_filtered = df_dataset[df_dataset[region_col].astype(str).isin(applied_regions)].copy()
         else:
             df_filtered = df_dataset.copy()
 
@@ -3821,7 +3840,7 @@ class DataVisualizer:
         # --- KPI ---
         st.markdown("### 📊 Ключевые показатели")
 
-        report_key = tuple(selected_regions) if selected_regions else ("__ALL__",)
+        report_key = tuple(applied_regions) if applied_regions else ("__ALL__",)
 
         if st.button("Рассчитать", type="primary", key="retro_regions_calc_btn"):
             pairs = sorted(set(
@@ -3944,48 +3963,64 @@ class DataVisualizer:
 
         st.markdown("### 🔍 Фильтры")
 
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            all_clients = sorted(df_dataset["Клиент"].dropna().astype(str).unique().tolist())
-            selected_clients = st.multiselect(
-                "Клиент (пусто = все)",
-                options=all_clients,
-                default=[],
-                key="retro_summary_clients",
-            )
-
         region_col = "Регион long" if "Регион long" in df_dataset.columns else "Регион short"
-        with col2:
-            all_regions = sorted(df_dataset[region_col].dropna().astype(str).unique().tolist())
-            selected_regions = st.multiselect(
-                "Регион long (пусто = все)",
-                options=all_regions,
-                default=[],
-                key="retro_summary_regions",
+        asm_col = "ASM" if "ASM" in df_dataset.columns else None
+
+        all_clients = sorted(df_dataset["Клиент"].dropna().astype(str).unique().tolist())
+        all_regions = sorted(df_dataset[region_col].dropna().astype(str).unique().tolist())
+        all_asm = sorted(df_dataset[asm_col].dropna().astype(str).unique().tolist()) if asm_col else []
+
+        with st.form("retro_summary_filter_form"):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                selected_clients = st.multiselect(
+                    "Клиент (пусто = все)",
+                    options=all_clients,
+                    default=st.session_state.get("retro_summary_clients_applied", []),
+                    key="retro_summary_clients",
+                )
+
+            with col2:
+                selected_regions = st.multiselect(
+                    "Регион long (пусто = все)",
+                    options=all_regions,
+                    default=st.session_state.get("retro_summary_regions_applied", []),
+                    key="retro_summary_regions",
+                )
+
+            with col3:
+                if asm_col:
+                    selected_asm = st.multiselect(
+                        "АСМ (пусто = все)",
+                        options=all_asm,
+                        default=st.session_state.get("retro_summary_asm_applied", []),
+                        key="retro_summary_asm",
+                    )
+                else:
+                    selected_asm = []
+                    st.warning("В датасете нет колонки 'ASM'.")
+
+            apply_filters = st.form_submit_button(
+                "✅ Применить фильтры", type="primary", use_container_width=True
             )
 
-        with col3:
-            asm_col = "ASM" if "ASM" in df_dataset.columns else None
-            if asm_col:
-                all_asm = sorted(df_dataset[asm_col].dropna().astype(str).unique().tolist())
-                selected_asm = st.multiselect(
-                    "АСМ (пусто = все)",
-                    options=all_asm,
-                    default=[],
-                    key="retro_summary_asm",
-                )
-            else:
-                selected_asm = []
-                st.warning("В датасете нет колонки 'ASM'.")
+        if apply_filters:
+            st.session_state.retro_summary_clients_applied = selected_clients
+            st.session_state.retro_summary_regions_applied = selected_regions
+            st.session_state.retro_summary_asm_applied = selected_asm
+
+        applied_clients = st.session_state.get("retro_summary_clients_applied", [])
+        applied_regions = st.session_state.get("retro_summary_regions_applied", [])
+        applied_asm = st.session_state.get("retro_summary_asm_applied", [])
 
         df_filtered = df_dataset.copy()
-        if selected_clients:
-            df_filtered = df_filtered[df_filtered["Клиент"].astype(str).isin(selected_clients)]
-        if selected_regions:
-            df_filtered = df_filtered[df_filtered[region_col].astype(str).isin(selected_regions)]
-        if selected_asm and asm_col:
-            df_filtered = df_filtered[df_filtered[asm_col].astype(str).isin(selected_asm)]
+        if applied_clients:
+            df_filtered = df_filtered[df_filtered["Клиент"].astype(str).isin(applied_clients)]
+        if applied_regions:
+            df_filtered = df_filtered[df_filtered[region_col].astype(str).isin(applied_regions)]
+        if applied_asm and asm_col:
+            df_filtered = df_filtered[df_filtered[asm_col].astype(str).isin(applied_asm)]
 
         if df_filtered.empty:
             st.info("Нет данных по выбранным фильтрам.")
@@ -3995,9 +4030,9 @@ class DataVisualizer:
         st.markdown("### 📊 Ключевые показатели")
 
         report_key = (
-            tuple(selected_clients),
-            tuple(selected_regions),
-            tuple(selected_asm),
+            tuple(applied_clients),
+            tuple(applied_regions),
+            tuple(applied_asm),
         )
 
         if st.button("Рассчитать", type="primary", key="retro_summary_calc_btn"):
