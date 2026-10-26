@@ -4058,26 +4058,31 @@ class DataVisualizer:
         # --- Тепловые карты ---
         st.markdown("### 🗺️ Тепловые карты ПФ, %")
 
-        self._render_summary_heatmap(
-            df_filtered, months,
-            group_col="Клиент",
-            title="ПФ, % — по клиентам",
-            key="summary_heatmap_client",
-        )
-        self._render_summary_heatmap(
-            df_filtered, months,
-            group_col="RS",
-            title="ПФ, % — по RS",
-            key="summary_heatmap_rs",
-            top_n=30,
-        )
-        self._render_summary_heatmap(
-            df_filtered, months,
-            group_col="ТП",
-            title="ПФ, % — по ТП",
-            key="summary_heatmap_tp",
-            top_n=30,
-        )
+        with st.expander("🗺️ ПФ, % — по клиентам", expanded=False):
+            self._render_summary_heatmap(
+                df_filtered, months,
+                group_col="Клиент",
+                title="ПФ, % — по клиентам",
+                key="summary_heatmap_client",
+            )
+
+        with st.expander("🗺️ ПФ, % — по RS", expanded=False):
+            self._render_summary_heatmap(
+                df_filtered, months,
+                group_col="RS",
+                title="ПФ, % — по RS",
+                key="summary_heatmap_rs",
+                top_n=30,
+            )
+
+        with st.expander("🗺️ ПФ, % — по ТП", expanded=False):
+            self._render_summary_heatmap(
+                df_filtered, months,
+                group_col="ТП",
+                title="ПФ, % — по ТП",
+                key="summary_heatmap_tp",
+                top_n=30,
+            )
     
     def _render_summary_heatmap(
         self,
