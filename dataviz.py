@@ -3302,59 +3302,75 @@ class DataVisualizer:
             "План ТП, руб": [],
             "Факт ТП, руб": [],
             "ПФ ТП, руб": [],
-            "Длительность": [],  # <-- НОВОЕ
+            "Длительность": [],
         }
-        for y, m in reversed(months):
-            sub = df_client_all[
-                (df_client_all["Год"] == y)
-                & (df_client_all["Месяц"] == m)
-            ]
-            if sub.empty:
-                for k in rows.keys():
-                    rows[k].append(None)
-            else:
-                plan = len(sub)
-                fact = int((sub["Тип файла"] == "ЗП").sum())
-                pf = (fact / plan * 100) if plan > 0 else 0.0
-                zp_sub_for_rs = sub[sub["Тип файла"] == "ЗП"]
-                rs_unique = zp_sub_for_rs["ТП"].dropna().nunique()
-                ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
-                
-                # <-- НОВОЕ: Расчет длительности
-                if "Длительность" in sub.columns:
-                    dur_values = sub["Длительность"].dropna().tolist()
-                elif "Дата старта" in sub.columns and "Дата финиша" in sub.columns:
-                    start = pd.to_datetime(sub["Дата старта"], errors='coerce')
-                    finish = pd.to_datetime(sub["Дата финиша"], errors='coerce')
-                    diff = (finish - start).dt.days + 1
-                    dur_values = diff.dropna().tolist()
-                else:
-                    dur_values = []
-                
-                avg_dur = round(sum(dur_values) / len(dur_values)) if dur_values else None
-                # ------------------------------------------
 
-                zp_sub = sub[sub["Тип файла"] == "ЗП"]
-                if not zp_sub.empty:
-                    plan_tp = zp_sub["План ТП, руб"].mean() if "План ТП, руб" in zp_sub.columns else None
-                    fact_tp = zp_sub["Факт ТП, руб"].mean() if "Факт ТП, руб" in zp_sub.columns else None
-                    plan_tp = None if pd.isna(plan_tp) else round(float(plan_tp))
-                    fact_tp = None if pd.isna(fact_tp) else round(float(fact_tp))
-                    pf_tp = (plan_tp - fact_tp) if (plan_tp is not None and fact_tp is not None) else None
-                else:
-                    plan_tp = None
-                    fact_tp = None
-                    pf_tp = None
-                
-                rows["План проекта, шт"].append(plan)
-                rows["Факт проекта, шт"].append(fact)
-                rows["ПФ клиент, %"].append(round(pf))
-                rows["Кол-во ТП, чел."].append(rs_unique)
-                rows["Кол-во анкет на 1 ТП, шт."].append(round(ankets))
-                rows["План ТП, руб"].append(plan_tp)
-                rows["Факт ТП, руб"].append(fact_tp)
-                rows["ПФ ТП, руб"].append(pf_tp)
-                rows["Длительность"].append(avg_dur) # <-- НОВОЕ
+        if df_client_all is None or df_client_all.empty or not months:
+            columns = [self._month_label(y, m) for y, m in reversed(months)] if months else []
+            table = pd.DataFrame(rows, index=columns).T
+            table.index.name = "Метрика"
+            return table
+
+        df = df_client_all.copy()
+        df["_ym"] = df["Год"].astype(int) * 100 + df["Месяц"].astype(int)
+        df["_is_zp"] = (df["Тип файла"] == "ЗП")
+
+        # Один groupby по месяцам — план/факт/длительность
+        agg = df.groupby("_ym").agg(
+            plan=("_ym", "size"),
+            fact=("_is_zp", "sum"),
+            dur_sum=("Длительность", "sum"),
+            dur_cnt=("Длительность", "count"),
+        )
+
+        # ТП-метрики — только по ЗП
+        zp = df[df["_is_zp"]]
+        if not zp.empty:
+            rs = zp.groupby("_ym")["ТП"].nunique(dropna=True)
+            tp = zp.groupby("_ym").agg(
+                plan_tp_mean=("План ТП, руб", "mean"),
+                fact_tp_mean=("Факт ТП, руб", "mean"),
+            )
+        else:
+            rs = pd.Series(dtype="int64")
+            tp = pd.DataFrame(columns=["plan_tp_mean", "fact_tp_mean"])
+
+        for y, m in reversed(months):
+            ym = int(y) * 100 + int(m)
+            if ym not in agg.index:
+                for k in rows:
+                    rows[k].append(None)
+                continue
+
+            plan = int(agg.loc[ym, "plan"])
+            fact = int(agg.loc[ym, "fact"])
+            pf = (fact / plan * 100) if plan > 0 else 0.0
+
+            rs_unique = int(rs.get(ym, 0)) if not rs.empty else 0
+            ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
+
+            dur_sum = agg.loc[ym, "dur_sum"]
+            dur_cnt = agg.loc[ym, "dur_cnt"]
+            avg_dur = round(float(dur_sum) / int(dur_cnt)) if (dur_cnt > 0 and pd.notna(dur_sum)) else None
+
+            if not tp.empty and ym in tp.index:
+                plan_tp = tp.loc[ym, "plan_tp_mean"]
+                fact_tp = tp.loc[ym, "fact_tp_mean"]
+                plan_tp = None if pd.isna(plan_tp) else round(float(plan_tp))
+                fact_tp = None if pd.isna(fact_tp) else round(float(fact_tp))
+                pf_tp = (plan_tp - fact_tp) if (plan_tp is not None and fact_tp is not None) else None
+            else:
+                plan_tp = fact_tp = pf_tp = None
+
+            rows["План проекта, шт"].append(plan)
+            rows["Факт проекта, шт"].append(fact)
+            rows["ПФ клиент, %"].append(round(pf))
+            rows["Кол-во ТП, чел."].append(rs_unique)
+            rows["Кол-во анкет на 1 ТП, шт."].append(round(ankets))
+            rows["План ТП, руб"].append(plan_tp)
+            rows["Факт ТП, руб"].append(fact_tp)
+            rows["ПФ ТП, руб"].append(pf_tp)
+            rows["Длительность"].append(avg_dur)
 
         columns = [self._month_label(y, m) for y, m in reversed(months)]
         table = pd.DataFrame(rows, index=columns).T
@@ -3460,68 +3476,76 @@ class DataVisualizer:
         if df_client_all is None or df_client_all.empty or not months:
             return
 
+        df = df_client_all.copy()
+        df["_region"] = df["Регион short"].astype(str).str.strip()
+        df["_ym"] = df["Год"].astype(int) * 100 + df["Месяц"].astype(int)
+        df["_is_zp"] = (df["Тип файла"] == "ЗП")
 
-        # 1. Получаем список ВСЕХ уникальных регионов клиента (за всё время)
-        all_regions = df_client_all["Регион short"].dropna().astype(str).unique()
-        if len(all_regions) == 0:
+        regions_sorted = sorted(df["_region"].dropna().unique())
+        if not regions_sorted:
             st.info("Нет данных по регионам для построения тепловой карты.")
             return
 
-        regions_sorted = sorted(all_regions)
+        # Один groupby по (регион, месяц)
+        g = df.groupby(["_region", "_ym"]).agg(
+            plan=("_ym", "size"),
+            fact=("_is_zp", "sum"),
+        ).reset_index()
+
+        # Человекочитаемый ярлык месяца
+        label_map = {int(y) * 100 + int(m): self._month_label(y, m) for y, m in months}
+        g["_month_label"] = g["_ym"].map(label_map)
+        g = g[g["_month_label"].notna()].copy()
+
+        g["pf"] = ((g["fact"] / g["plan"] * 100).where(g["plan"] > 0, 0.0)).round(1)
+
         months_sorted = [self._month_label(y, m) for y, m in months]
 
-        # 2. Считаем реальные значения ПФ
-        heatmap_data = []
-        
-        for y, m in months:
-            sub = df_client_all[
-                (df_client_all["Год"] == y)
-                & (df_client_all["Месяц"] == m)
-            ]
-            
-            month_label = self._month_label(y, m)
-            
-            for reg in regions_sorted:
-                reg_sub = sub[sub["Регион short"].astype(str) == reg]
-                
-                if reg_sub.empty:
-                    pf = 0.0
-                    has_plan = False
-                else:
-                    plan = len(reg_sub)
-                    fact = int((reg_sub["Тип файла"] == "ЗП").sum())
-                    pf = (fact / plan * 100) if plan > 0 else 0.0
-                    has_plan = True
-                    
-                heatmap_data.append({
+        pivot_pf = g.pivot_table(
+            index="_region", columns="_month_label", values="pf", aggfunc="first"
+        ).reindex(index=regions_sorted, columns=months_sorted)
+
+        pivot_plan = g.pivot_table(
+            index="_region", columns="_month_label", values="plan", aggfunc="sum"
+        ).reindex(index=regions_sorted, columns=months_sorted)
+
+        # Собираем плоский DataFrame
+        heatmap_rows = []
+        for reg in regions_sorted:
+            reg_long = self._get_long_region(reg)
+            pf_row = pivot_pf.loc[reg]
+            plan_row = pivot_plan.loc[reg]
+            for label in months_sorted:
+                pf_val = pf_row.get(label)
+                plan_val = plan_row.get(label)
+                has_plan = bool(pd.notna(plan_val) and plan_val > 0)
+                pf_val = 0.0 if pd.isna(pf_val) else float(pf_val)
+                heatmap_rows.append({
                     "Регион": reg,
-                    "Регион_полный": self._get_long_region(reg),
-                    "Месяц": month_label,
-                    "ПФ, %": round(pf, 1),
-                    "Есть_план": has_plan
+                    "Регион_полный": reg_long,
+                    "Месяц": label,
+                    "ПФ, %": round(pf_val, 1),
+                    "Есть_план": has_plan,
                 })
 
-        heatmap_df = pd.DataFrame(heatmap_data)
+        heatmap_df = pd.DataFrame(heatmap_rows)
 
-        # 3. Отрисовка
+        # Отрисовка (без изменений)
         font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 
         base = alt.Chart(heatmap_df).encode(
             x=alt.X(
-                "Месяц:N", 
-                sort=months_sorted, 
-                # Ось X вверху!
+                "Месяц:N",
+                sort=months_sorted,
                 axis=alt.Axis(orient='top', labelAngle=0, labelFont=font, title=None)
             ),
             y=alt.Y(
-                "Регион:N", 
-                sort=regions_sorted, 
+                "Регион:N",
+                sort=regions_sorted,
                 axis=alt.Axis(labelFont=font, title=None)
             )
         )
 
-
-        # Прямоугольники (цвет)
         rect = base.mark_rect(
             cornerRadius=2,
             stroke="#D3D3D3",
@@ -3537,7 +3561,7 @@ class DataVisualizer:
                     ),
                     legend=alt.Legend(title="ПФ, %", orient="right")
                 ),
-                alt.value("#F0F0F0")  # Если плана нет — светло-серый
+                alt.value("#F0F0F0")
             ),
             tooltip=[
                 alt.Tooltip("Регион_полный:N", title="Регион"),
@@ -3546,18 +3570,17 @@ class DataVisualizer:
             ]
         )
 
-        # Текст поверх прямоугольников (скрываем на пустых)
         text = base.mark_text(
-            align="center", 
-            baseline="middle", 
-            font=font, 
+            align="center",
+            baseline="middle",
+            font=font,
             fontSize=14,
             dy=1
         ).encode(
             text=alt.condition(
-                alt.datum["Есть_план"] == True,  # <-- Показываем цифру только если есть план
+                alt.datum["Есть_план"] == True,
                 alt.Text("ПФ, %:Q", format=".0f"),
-                alt.value("")  # Иначе пустой текст
+                alt.value("")
             ),
             color=alt.condition(
                 alt.datum["ПФ, %"] > 50,
@@ -3567,7 +3590,7 @@ class DataVisualizer:
         )
 
         chart = (rect + text).properties(
-            height=max(200, len(regions_sorted) * 35) # Динамическая высота
+            height=max(200, len(regions_sorted) * 35)
         ).configure_view(strokeWidth=0).configure_axis(grid=False)
 
         st.altair_chart(chart, use_container_width=True)
