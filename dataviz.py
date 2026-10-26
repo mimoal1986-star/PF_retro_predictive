@@ -3053,7 +3053,8 @@ class DataVisualizer:
                 continue
             plans.append(len(sub))
             facts.append(int((sub["Тип файла"] == "ЗП").sum()))
-            rs_counts.append(sub["ТП"].dropna().nunique())
+            zp_sub_for_rs = sub[sub["Тип файла"] == "ЗП"]
+            rs_counts.append(zp_sub_for_rs["ТП"].dropna().nunique())
             
             # <-- НОВОЕ: расчет длительности
             if "Длительность" in sub.columns:
@@ -3129,7 +3130,8 @@ class DataVisualizer:
                 plan = len(sub)
                 fact = int((sub["Тип файла"] == "ЗП").sum())
                 pf = (fact / plan * 100) if plan > 0 else 0.0
-                rs_unique = sub["ТП"].dropna().nunique()
+                zp_sub_for_rs = sub[sub["Тип файла"] == "ЗП"]
+                rs_unique = zp_sub_for_rs["ТП"].dropna().nunique()
                 ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
                 
                 # <-- НОВОЕ: Расчет длительности
@@ -3477,14 +3479,14 @@ class DataVisualizer:
             k1.metric("📊 План ср., шт", f"{kpi['plan_avg']:,}")
             k2.metric("✅ Факт ср., шт", f"{kpi['fact_avg']:,}")
             k3.metric("🎯 ПФ ср., %", f"{kpi['pf_percent']}%")
-            k4.metric("👥 Кол-во RS ср., чел.", f"{kpi['rs_count_avg']:,}")
+            k4.metric("👥 Кол-во ТП ср., чел.", f"{kpi['rs_count_avg']:,}")
             
             # Ряд 2
             tk1, tk2, tk3, tk4 = st.columns(4)
             tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
             tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
             tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
-            tk4.metric("📋 Кол-во анкет на 1 RS ср., шт.", f"{kpi['ankets_per_rs']}")
+            tk4.metric("📋 Кол-во анкет на 1 ТП ср., шт.", f"{kpi['ankets_per_rs']}")
 
             # НОВЫЙ Ряд 3 (Длительность)
             d1, d2, d3, d4 = st.columns(4)
@@ -3548,15 +3550,15 @@ class DataVisualizer:
                 table, "ПФ клиент, %", "ПФ клиент, %", "ПФ клиент, %", self._pf_color
             )
 
-            rs_series = table.loc["Кол-во RS, чел."]
+            rs_series = table.loc["Кол-во ТП, чел."]
             self._render_bar_chart_retro(
-                table, "Кол-во RS, чел.", "Кол-во RS, чел.", "Кол-во RS, чел.",
+                table, "Кол-во ТП, чел.", "Кол-во ТП, чел.", "Кол-во ТП, чел.",
                 self._get_quantile_colors(rs_series, True)
             )
 
-            ankets_series = table.loc["Кол-во анкет на 1 RS, шт."]
+            ankets_series = table.loc["Кол-во анкет на 1 ТП, шт."]
             self._render_bar_chart_retro(
-                table, "Кол-во анкет на 1 RS, шт.", "Кол-во анкет на 1 RS, шт.", "Кол-во анкет на 1 RS, шт.",
+                table, "Кол-во анкет на 1 ТП, шт.", "Кол-во анкет на 1 ТП, шт.", "Кол-во анкет на 1 ТП, шт.",
                 self._get_quantile_colors(ankets_series, False)
             )
             
