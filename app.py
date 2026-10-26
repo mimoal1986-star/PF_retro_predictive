@@ -1297,7 +1297,7 @@ with tab3:
         st.info("📌 Загрузите Parquet-файл (report_data.parquet) на вкладке «Загрузка данных»")
 
     else:
-        tab_retro_clients, tab_retro_regions, tab_retro_dsm, tab_retro_summary, tab_retro_export = st.tabs(
+        tab_retro_clients, tab_retro_regions, tab_retro_summary, tab_retro_export = st.tabs(
             ["👥 Клиенты", "🗺️ Регионы", "📊 Сводный", "📥 Выгрузка"]
         )
 
