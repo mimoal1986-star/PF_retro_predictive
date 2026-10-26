@@ -3761,9 +3761,157 @@ class DataVisualizer:
 
 
     def create_retro_regions_tab(self, df_dataset):
-        """Ретро-аналитика: вкладка «Регионы» (в разработке)"""
-        st.info("В разработке.")
+        """Ретро-аналитика: вкладка «Регионы»"""
+        if df_dataset is None or df_dataset.empty:
+            st.info("Нет данных для отображения.")
+            return
 
+        # --- Фильтр по регионам ---
+        region_col = "Регион short" if "Регион short" in df_dataset.columns else None
+        if region_col is None:
+            st.warning("В датасете нет колонки 'Регион short'.")
+            return
+
+        all_regions = sorted(
+            df_dataset[region_col].dropna().astype(str).unique().tolist()
+        )
+        if not all_regions:
+            st.warning("В датасете нет регионов.")
+            return
+
+        selected_regions = st.multiselect(
+            "Регион (пусто = все регионы)",
+            options=all_regions,
+            default=[],
+            key="retro_regions_filter",
+        )
+
+        if selected_regions:
+            df_filtered = df_dataset[df_dataset[region_col].astype(str).isin(selected_regions)].copy()
+        else:
+            df_filtered = df_dataset.copy()
+
+        if df_filtered.empty:
+            st.info("Нет данных по выбранным регионам.")
+            return
+
+        # --- KPI ---
+        st.markdown("### 📊 Ключевые показатели")
+
+        report_key = tuple(selected_regions) if selected_regions else ("__ALL__",)
+
+        if st.button("Рассчитать", type="primary", key="retro_regions_calc_btn"):
+            pairs = sorted(set(
+                (int(y), int(m)) for y, m in df_filtered[["Год", "Месяц"]]
+                .dropna().itertuples(index=False, name=None)
+            ))
+            if pairs:
+                y_min, m_min = pairs[0]
+                y_max, m_max = pairs[-1]
+                months = []
+                y, m = y_min, m_min
+                while (y, m) <= (y_max, m_max):
+                    months.append((y, m))
+                    if m == 12:
+                        y, m = y + 1, 1
+                    else:
+                        m += 1
+            else:
+                months = []
+
+            kpi = self._compute_kpi_retro(df_filtered, months)
+            table = self._compute_monthly_table_retro(df_filtered, months)
+            st.session_state.analytics_report_regions = {
+                "key": report_key, "empty": False, "kpi": kpi, "table": table,
+                "months": months,
+            }
+
+        report = st.session_state.get("analytics_report_regions")
+        if report is None or report["key"] != report_key:
+            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+        else:
+            kpi = report["kpi"]
+            table = report["table"]
+            months = report.get("months", [])
+
+            # Ряд 1
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("📊 План ср., шт", f"{kpi['plan_avg']:,}")
+            k2.metric("✅ Факт ср., шт", f"{kpi['fact_avg']:,}")
+            k3.metric("🎯 ПФ ср., %", f"{kpi['pf_percent']}%")
+            k4.metric("👥 Кол-во ТП ср., чел.", f"{kpi['rs_count_avg']:,}")
+
+            # Ряд 2
+            tk1, tk2, tk3, tk4 = st.columns(4)
+            tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
+            tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
+            tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+            tk4.metric("📋 Кол-во анкет на 1 ТП ср., шт.", f"{kpi['ankets_per_rs']}")
+
+            # Ряд 3
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("📅 Длительность ср., дн.", f"{kpi.get('duration_avg', 0):,.0f}")
+
+            # Выгрузка KPI и датасета
+            col_dl1, col_dl2 = st.columns(2)
+
+            with col_dl1:
+                excel_buffer = BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                    table.to_excel(writer, sheet_name="Ключевые показатели")
+                st.download_button(
+                    "📥 Выгрузить KPI в Excel",
+                    data=excel_buffer.getvalue(),
+                    file_name="kpi_regions.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="retro_regions_download_kpi_btn",
+                )
+
+            with col_dl2:
+                dataset_buffer = BytesIO()
+                with pd.ExcelWriter(dataset_buffer, engine="openpyxl") as writer:
+                    df_filtered.to_excel(writer, index=False, sheet_name="Датасет")
+                st.download_button(
+                    "📥 Выгрузить датасет",
+                    data=dataset_buffer.getvalue(),
+                    file_name="dataset_regions.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="retro_regions_download_dataset_btn",
+                )
+
+            # Таблица по месяцам
+            with st.expander("📈 Ключевые показатели по месяцам", expanded=False):
+                st.dataframe(table, use_container_width=True)
+
+            # Дашборд
+            st.markdown("### 📊 Дашборд")
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            self._render_bar_chart_retro(
+                table, "ПФ клиент, %", "ПФ клиент, %", "ПФ клиент, %", self._pf_color
+            )
+
+            rs_series = table.loc["Кол-во ТП, чел."]
+            self._render_bar_chart_retro(
+                table, "Кол-во ТП, чел.", "Кол-во ТП, чел.", "Кол-во ТП, чел.",
+                self._get_quantile_colors(rs_series, True)
+            )
+
+            ankets_series = table.loc["Кол-во анкет на 1 ТП, шт."]
+            self._render_bar_chart_retro(
+                table, "Кол-во анкет на 1 ТП, шт.", "Кол-во анкет на 1 ТП, шт.", "Кол-во анкет на 1 ТП, шт.",
+                self._get_quantile_colors(ankets_series, False)
+            )
+
+            pf_tp_series = table.loc["ПФ ТП, руб"]
+            self._render_bar_chart_retro(
+                table, "ПФ ТП, руб", "ПФ ТП, руб", "ПФ ТП, руб",
+                self._get_quantile_colors(pf_tp_series, True), is_currency=True
+            )
+
+            # Тепловая карта по регионам
+            with st.expander("🗺️ Тепловая карта ПФ по регионам", expanded=False):
+                self._render_region_heatmap_retro(df_filtered, months)
     def create_retro_dsm_tab(self, df_dataset):
         """Ретро-аналитика: вкладка «DSM» (в разработке)"""
         st.info("В разработке.")
