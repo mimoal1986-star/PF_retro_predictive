@@ -3053,7 +3053,7 @@ class DataVisualizer:
                 continue
             plans.append(len(sub))
             facts.append(int((sub["Тип файла"] == "ЗП").sum()))
-            rs_counts.append(sub["RS"].dropna().nunique())
+            rs_counts.append(sub["ТП"].dropna().nunique())
             
             # <-- НОВОЕ: расчет длительности
             if "Длительность" in sub.columns:
@@ -3110,8 +3110,8 @@ class DataVisualizer:
             "План проекта, шт": [],
             "Факт проекта, шт": [],
             "ПФ клиент, %": [],
-            "Кол-во RS, чел.": [],
-            "Кол-во анкет на 1 RS, шт.": [],
+            "Кол-во ТП, чел.": [],
+            "Кол-во анкет на 1 ТП, шт.": [],
             "План ТП, руб": [],
             "Факт ТП, руб": [],
             "ПФ ТП, руб": [],
@@ -3129,7 +3129,7 @@ class DataVisualizer:
                 plan = len(sub)
                 fact = int((sub["Тип файла"] == "ЗП").sum())
                 pf = (fact / plan * 100) if plan > 0 else 0.0
-                rs_unique = sub["RS"].dropna().nunique()
+                rs_unique = sub["ТП"].dropna().nunique()
                 ankets = (fact / rs_unique) if rs_unique > 0 else 0.0
                 
                 # <-- НОВОЕ: Расчет длительности
@@ -3161,8 +3161,8 @@ class DataVisualizer:
                 rows["План проекта, шт"].append(plan)
                 rows["Факт проекта, шт"].append(fact)
                 rows["ПФ клиент, %"].append(round(pf))
-                rows["Кол-во RS, чел."].append(rs_unique)
-                rows["Кол-во анкет на 1 RS, шт."].append(round(ankets))
+                rows["Кол-во ТП, чел."].append(rs_unique)
+                rows["Кол-во анкет на 1 ТП, шт."].append(round(ankets))
                 rows["План ТП, руб"].append(plan_tp)
                 rows["Факт ТП, руб"].append(fact_tp)
                 rows["ПФ ТП, руб"].append(pf_tp)
@@ -3711,7 +3711,7 @@ class DataVisualizer:
                 
                 dur = group["Длительность"].mean() if "Длительность" in group.columns else 0
                 tp_plan = group["План ТП, руб"].mean() if "План ТП, руб" in group.columns else 0
-                rs_load = fact / group["RS"].dropna().nunique() if group["RS"].dropna().nunique() > 0 else 0
+                rs_load = fact / group["ТП"].dropna().nunique() if group["ТП"].dropna().nunique() > 0 else 0
                 
                 stats.append({"name": str(name), "pf": round(pf, 1), "dur": round(dur, 1), "tp": round(tp_plan, 1), "load": round(rs_load, 1)})
             
@@ -3836,7 +3836,7 @@ class DataVisualizer:
         context += f"Средний ПФ за всю историю: {kpi['pf_percent']}%\n"
         context += f"Средняя длительность: {kpi.get('duration_avg', 0)} дн.\n"
         context += f"Средняя цена (План ТП): {kpi['plan_tp_avg']} руб.\n"
-        context += f"Средняя нагрузка на 1 RS: {kpi['ankets_per_rs']} шт.\n\n"
+        context += f"Средняя нагрузка на 1 ТП: {kpi['ankets_per_rs']} шт.\n\n"
 
         # Добавляем данные текущего проекта
         if is_current_project:
@@ -3900,7 +3900,7 @@ class DataVisualizer:
             2. Посмотри на проблемные регионы (ПФ < 80%). Обрати внимание на регионы с ПФ 0% — если план визитов > 0, но факт = 0, это критическая проблема.
             3. Сравни текущие показатели региона (цена, длительность проекта) с БЕНЧМАРКОМ (медиана других проектов). Игнорируй незначительные отклонения (до 10-15%). 
             4. Сравни провальные месяцы с успешными месяцами этого же региона. Если в успешные месяцы цена или длительность проекта были значительно выше, укажи это как причину. 
-               ВАЖНО: Если в провальные месяцы нагрузка ниже, чем в успешные — это следствие падения факта, а не причина. Не пиши "нужно повысить нагрузку". Вместо этого предложи перераспределить RS или проверить цену.
+               ВАЖНО: Если в провальные месяцы нагрузка ниже, чем в успешные — это следствие падения факта, а не причина. Не пиши "нужно повысить нагрузку". Вместо этого предложи перераспределить ТП или проверить цену.
             5. Если есть проблемные RS — предложи их заменить или дать в помощь второго сотрудника.
             """
         else:
