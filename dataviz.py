@@ -937,11 +937,26 @@ class DataVisualizer:
                     
                     if months_list:
                         kpi = self._compute_kpi_retro(client_retro_df, months_list)
+
+                        # RS ретро = уникальные RS из ЗП за те же месяцы (только для ПФ проекты)
+                        months_ym = {int(y) * 100 + int(m) for y, m in months_list}
+                        ym_series = (
+                            client_retro_df["Год"].astype(int) * 100
+                            + client_retro_df["Месяц"].astype(int)
+                        )
+                        retro_zp = client_retro_df[
+                            (client_retro_df["Тип файла"] == "ЗП")
+                            & ym_series.isin(months_ym)
+                        ]
+                        rs_retro_unique = retro_zp["RS"].dropna().nunique()
+
                         retro_row['План проекта, шт.'] = kpi['plan_avg']
                         retro_row['Факт проекта, шт.'] = kpi['fact_avg']
                         retro_row['План/Факт проекта,%'] = kpi['pf_percent']
-                        retro_row['RS'] = kpi['rs_count_avg']
-                        retro_row['Кол-во анкет на 1 RS, шт.'] = kpi['ankets_per_rs']
+                        retro_row['RS'] = rs_retro_unique
+                        retro_row['Кол-во анкет на 1 RS, шт.'] = (
+                            round(kpi['fact_avg'] / rs_retro_unique) if rs_retro_unique > 0 else 0
+                        )
                         retro_row['Длительность'] = kpi['duration_avg']
                 rows.append(retro_row)
             
