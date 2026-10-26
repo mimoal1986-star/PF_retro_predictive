@@ -3936,6 +3936,149 @@ class DataVisualizer:
             with st.expander("🗺️ Тепловая карта ПФ по регионам", expanded=False):
                 self._render_region_heatmap_retro(df_filtered, months)
 
+    def create_retro_summary_tab(self, df_dataset):
+        """Ретро-аналитика: вкладка «Сводный»"""
+        if df_dataset is None or df_dataset.empty:
+            st.info("Нет данных для отображения.")
+            return
+
+        st.markdown("### 🔍 Фильтры")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            all_clients = sorted(df_dataset["Клиент"].dropna().astype(str).unique().tolist())
+            selected_clients = st.multiselect(
+                "Клиент (пусто = все)",
+                options=all_clients,
+                default=[],
+                key="retro_summary_clients",
+            )
+
+        region_col = "Регион long" if "Регион long" in df_dataset.columns else "Регион short"
+        with col2:
+            all_regions = sorted(df_dataset[region_col].dropna().astype(str).unique().tolist())
+            selected_regions = st.multiselect(
+                "Регион long (пусто = все)",
+                options=all_regions,
+                default=[],
+                key="retro_summary_regions",
+            )
+
+        with col3:
+            asm_col = "ASM" if "ASM" in df_dataset.columns else None
+            if asm_col:
+                all_asm = sorted(df_dataset[asm_col].dropna().astype(str).unique().tolist())
+                selected_asm = st.multiselect(
+                    "АСМ (пусто = все)",
+                    options=all_asm,
+                    default=[],
+                    key="retro_summary_asm",
+                )
+            else:
+                selected_asm = []
+                st.warning("В датасете нет колонки 'ASM'.")
+
+        df_filtered = df_dataset.copy()
+        if selected_clients:
+            df_filtered = df_filtered[df_filtered["Клиент"].astype(str).isin(selected_clients)]
+        if selected_regions:
+            df_filtered = df_filtered[df_filtered[region_col].astype(str).isin(selected_regions)]
+        if selected_asm and asm_col:
+            df_filtered = df_filtered[df_filtered[asm_col].astype(str).isin(selected_asm)]
+
+        if df_filtered.empty:
+            st.info("Нет данных по выбранным фильтрам.")
+            return
+
+        # --- KPI и таблица ---
+        st.markdown("### 📊 Ключевые показатели")
+
+        report_key = (
+            tuple(selected_clients),
+            tuple(selected_regions),
+            tuple(selected_asm),
+        )
+
+        if st.button("Рассчитать", type="primary", key="retro_summary_calc_btn"):
+            pairs = sorted(set(
+                (int(y), int(m)) for y, m in df_filtered[["Год", "Месяц"]]
+                .dropna().itertuples(index=False, name=None)
+            ))
+            if pairs:
+                y_min, m_min = pairs[0]
+                y_max, m_max = pairs[-1]
+                months = []
+                y, m = y_min, m_min
+                while (y, m) <= (y_max, m_max):
+                    months.append((y, m))
+                    if m == 12:
+                        y, m = y + 1, 1
+                    else:
+                        m += 1
+            else:
+                months = []
+
+            kpi = self._compute_kpi_retro(df_filtered, months)
+            table = self._compute_monthly_table_retro(df_filtered, months)
+            st.session_state.analytics_report_summary = {
+                "key": report_key, "kpi": kpi, "table": table, "months": months,
+            }
+
+        report = st.session_state.get("analytics_report_summary")
+        if report is None or report["key"] != report_key:
+            st.info("Нажмите «Рассчитать», чтобы построить отчёт.")
+            return
+
+        kpi = report["kpi"]
+        table = report["table"]
+        months = report.get("months", [])
+
+        # Ряд 1
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("📊 План ср., шт", f"{kpi['plan_avg']:,}")
+        k2.metric("✅ Факт ср., шт", f"{kpi['fact_avg']:,}")
+        k3.metric("🎯 ПФ ср., %", f"{kpi['pf_percent']}%")
+        k4.metric("👥 Кол-во ТП ср., чел.", f"{kpi['rs_count_avg']:,}")
+
+        # Ряд 2
+        tk1, tk2, tk3, tk4 = st.columns(4)
+        tk1.metric("💰 План ТП ср., руб", f"{kpi['plan_tp_avg']:,.0f}")
+        tk2.metric("💵 Факт ТП ср., руб", f"{kpi['fact_tp_avg']:,.0f}")
+        tk3.metric("📉 ΔПФ ТП ср., руб", f"{kpi['pf_tp_avg']:,.0f}")
+        tk4.metric("📋 Кол-во анкет на 1 ТП ср., шт.", f"{kpi['ankets_per_rs']}")
+
+        # Ряд 3
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("📅 Длительность ср., дн.", f"{kpi.get('duration_avg', 0):,.0f}")
+
+        with st.expander("📈 Ключевые показатели по месяцам", expanded=False):
+            st.dataframe(table, use_container_width=True)
+
+        # --- Тепловые карты ---
+        st.markdown("### 🗺️ Тепловые карты ПФ, %")
+
+        self._render_summary_heatmap(
+            df_filtered, months,
+            group_col="Клиент",
+            title="ПФ, % — по клиентам",
+            key="summary_heatmap_client",
+        )
+        self._render_summary_heatmap(
+            df_filtered, months,
+            group_col="RS",
+            title="ПФ, % — по RS",
+            key="summary_heatmap_rs",
+            top_n=30,
+        )
+        self._render_summary_heatmap(
+            df_filtered, months,
+            group_col="ТП",
+            title="ПФ, % — по ТП",
+            key="summary_heatmap_tp",
+            top_n=30,
+        )
+    
     def _render_summary_heatmap(
         self,
         df_dataset: pd.DataFrame,
