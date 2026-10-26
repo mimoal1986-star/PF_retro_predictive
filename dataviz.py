@@ -3899,6 +3899,8 @@ class DataVisualizer:
         report = st.session_state.get("analytics_report_regions")
         if report is None or report["key"] != report_key:
             st.info("Нажмите «Применить и рассчитать», чтобы построить отчёт.")
+        elif report.get("empty"):
+            st.info("Нет данных по выбранным регионам.")
         else:
             kpi = report["kpi"]
             table = report["table"]
@@ -3999,7 +4001,36 @@ class DataVisualizer:
         all_asm = sorted(df_dataset[asm_col].dropna().astype(str).unique().tolist()) if asm_col else []
 
         with st.form("retro_summary_filter_form"):
-            ...  # мультиселекты не меняются
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                selected_clients = st.multiselect(
+                    "Клиент (пусто = все)",
+                    options=all_clients,
+                    default=st.session_state.get("retro_summary_clients_applied", []),
+                    key="retro_summary_clients",
+                )
+
+            with col2:
+                selected_regions = st.multiselect(
+                    "Регион long (пусто = все)",
+                    options=all_regions,
+                    default=st.session_state.get("retro_summary_regions_applied", []),
+                    key="retro_summary_regions",
+                )
+
+            with col3:
+                if asm_col:
+                    selected_asm = st.multiselect(
+                        "АСМ (пусто = все)",
+                        options=all_asm,
+                        default=st.session_state.get("retro_summary_asm_applied", []),
+                        key="retro_summary_asm",
+                    )
+                else:
+                    selected_asm = []
+                    st.warning("В датасете нет колонки 'ASM'.")
+
             apply_and_calc = st.form_submit_button(
                 "✅ Применить и рассчитать", type="primary", use_container_width=True
             )
@@ -4070,6 +4101,9 @@ class DataVisualizer:
         report = st.session_state.get("analytics_report_summary")
         if report is None or report["key"] != report_key:
             st.info("Нажмите «Применить и рассчитать», чтобы построить отчёт.")
+            return
+        if report.get("empty"):
+            st.info("Нет данных по выбранным фильтрам.")
             return
 
         kpi = report["kpi"]
