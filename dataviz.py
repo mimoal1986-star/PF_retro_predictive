@@ -1627,11 +1627,13 @@ class DataVisualizer:
         # KPI
         st.markdown("### 📊 Ключевые показатели")
         
-        col_kpi1, col_kpi2, col_kpi3, col_checkbox1, col_checkbox2 = st.columns([1, 1, 1, 0.35, 0.35])
+        col_kpi1, col_kpi2, col_kpi3, col_checkbox1, col_checkbox2, col_checkbox3 = st.columns([1, 1, 1, 0.3, 0.3, 0.3])
         with col_checkbox1:
             include_prodata = st.checkbox("📊 Продата", key="region_include_prodata")
         with col_checkbox2:
             include_prodlenie = st.checkbox("🔄 Продление", key="region_include_prodlenie")
+        with col_checkbox3:
+            include_retro = st.checkbox("🔄 Ретро", key="region_include_retro")
         
         prodata_df = st.session_state.cleaned_data.get('prodata_processed', None)
         
@@ -1698,67 +1700,235 @@ class DataVisualizer:
             st.metric("📋 Факт поручено, шт", f"{assigned_total:,.0f}")
         with col6:
             st.metric("🔮 Прогноз ВП, %", f"{forecast_percent:.1f}%")
+
         
-        # Отображаем таблицу
-        display_cols = ['Регион']
-        
-        if show_client and 'Клиент' in region_data.columns:
-            display_cols.append('Клиент')
-        if show_project and 'Проект' in region_data.columns:
-            display_cols.append('Проект')
-        if show_wave and 'Волна' in region_data.columns:
-            display_cols.append('Волна')
-        if show_dsm and 'DSM' in region_data.columns:
-            display_cols.append('DSM')
-        if show_asm and 'ASM' in region_data.columns:
-            display_cols.append('ASM')
-        if show_rs and 'RS' in region_data.columns:
-            display_cols.append('RS')
-        if show_po and 'ПО' in region_data.columns:
-            display_cols.append('ПО')
-        
-        # Колонки, которые показываются всегда
-        always_show = [
-            'План проекта, шт.', 
-            'Факт проекта, шт.',
-            'План на дату, шт.',
-            'Факт на дату, шт.',
-            'План/Факт проекта,%',
-            '△План/Факт проекта, шт',
-            '△План/Факт проекта, %',
-            'План/Факт на дату,%',
-            '△План/Факт на дату, шт',
-            '△План/Факт на дату, %',
-            'Фокус',
-            'Прогноз на месяц, шт.',
-            'Длительность',
-            'Дней до конца проекта',
-            'Утилизация тайминга, %',
-            'Ср. план на день для 100% плана',
-            'Метод подбора дат',
-            'Оплата план',
-            'Оплата план средн., руб.',
-            'Оплата факт средн., руб.',
-            'Оплата план-факт средн., руб.',
-            'Оплата факт/план средн., %',
-            'Оплата средн. в динамике, руб.',
-            'Оплата средн. прогноз, руб.',
-            'Оплата поручено средн., руб.',
-            'Факт проекта_поручено, шт.',
-            'Факт проекта_не_поручено, шт.' 
-        ]
-        
-        for col in always_show:
-            if col in region_data.columns:
-                display_cols.append(col)
-        
-        existing_display = [c for c in display_cols if c in region_data.columns]
-        
-        # Преобразуем коды регионов в названия
-        if 'Регион' in region_data.columns:
-            region_data['Регион'] = region_data['Регион'].apply(self._get_long_region)
-        
-        st.dataframe(region_data[existing_display], use_container_width=True, hide_index=True)
+        # ============================================
+        # 5. ОТОБРАЖЕНИЕ
+        # ============================================
+
+        if not include_retro:
+            # ============================================
+            # ДЕФОЛТНЫЙ РЕЖИМ (без ретро)
+            # ============================================
+
+            display_cols = ['Регион']
+
+            if show_client and 'Клиент' in region_data.columns:
+                display_cols.append('Клиент')
+            if show_project and 'Проект' in region_data.columns:
+                display_cols.append('Проект')
+            if show_wave and 'Волна' in region_data.columns:
+                display_cols.append('Волна')
+            if show_dsm and 'DSM' in region_data.columns:
+                display_cols.append('DSM')
+            if show_asm and 'ASM' in region_data.columns:
+                display_cols.append('ASM')
+            if show_rs and 'RS' in region_data.columns:
+                display_cols.append('RS')
+            if show_po and 'ПО' in region_data.columns:
+                display_cols.append('ПО')
+
+            always_show = [
+                'План проекта, шт.',
+                'Факт проекта, шт.',
+                'План на дату, шт.',
+                'Факт на дату, шт.',
+                'План/Факт проекта,%',
+                '△План/Факт проекта, шт',
+                '△План/Факт проекта, %',
+                'План/Факт на дату,%',
+                '△План/Факт на дату, шт',
+                '△План/Факт на дату, %',
+                'Фокус',
+                'Прогноз на месяц, шт.',
+                'Длительность',
+                'Дней до конца проекта',
+                'Утилизация тайминга, %',
+                'Ср. план на день для 100% плана',
+                'Метод подбора дат',
+                'Оплата план',
+                'Оплата план средн., руб.',
+                'Оплата факт средн., руб.',
+                'Оплата план-факт средн., руб.',
+                'Оплата факт/план средн., %',
+                'Оплата средн. в динамике, руб.',
+                'Оплата средн. прогноз, руб.',
+                'Оплата поручено средн., руб.',
+                'Факт проекта_поручено, шт.',
+                'Факт проекта_не_поручено, шт.',
+            ]
+
+            for col in always_show:
+                if col in region_data.columns:
+                    display_cols.append(col)
+
+            existing_display = [c for c in display_cols if c in region_data.columns]
+
+            st.dataframe(region_data[existing_display], use_container_width=True, hide_index=True)
+
+        else:
+            # ============================================
+            # РЕЖИМ С РЕТРО
+            # ============================================
+
+            analytics_df = st.session_state.get('analytics_df')
+            retro_available = analytics_df is not None and not analytics_df.empty
+
+            # Готовим ретро-паркет: Регион short -> длинное название
+            retro_by_region = {}
+            if retro_available and 'Регион short' in analytics_df.columns:
+                analytics_df_norm = analytics_df.copy()
+                analytics_df_norm['_region_long'] = (
+                    analytics_df_norm['Регион short'].astype(str).apply(self._get_long_region)
+                )
+                retro_by_region = {k: v for k, v in analytics_df_norm.groupby('_region_long')}
+
+            region_data_sorted = region_data.copy()
+
+            rows = []
+
+            for _, current_row in region_data_sorted.iterrows():
+                region_name = str(current_row['Регион']).strip()
+
+                # 1. Строка 'текущий'
+                current_dict = current_row.to_dict()
+                current_dict['Регион'] = region_name
+                current_dict['Период'] = 'текущий'
+                rows.append(current_dict)
+
+                # 2. Строка 'ретро'
+                retro_row = {c: None for c in current_row.index}
+                retro_row['Регион'] = ''
+                retro_row['Период'] = 'ретро'
+
+                client_retro_df = retro_by_region.get(region_name)
+
+                if client_retro_df is not None and not client_retro_df.empty:
+                    pairs = sorted(set(
+                        (int(y), int(m)) for y, m in client_retro_df[['Год', 'Месяц']]
+                        .dropna().itertuples(index=False, name=None)
+                    ))
+
+                    if pairs:
+                        y_min, m_min = pairs[0]
+                        y_max, m_max = pairs[-1]
+                        months_list = []
+                        y, m = y_min, m_min
+                        while (y, m) <= (y_max, m_max):
+                            months_list.append((y, m))
+                            if m == 12:
+                                y, m = y + 1, 1
+                            else:
+                                m += 1
+                    else:
+                        months_list = []
+
+                    if months_list:
+                        kpi = self._compute_kpi_retro(client_retro_df, months_list)
+
+                        # RS ретро = уникальные RS из ЗП за те же месяцы
+                        months_ym = {int(y) * 100 + int(m) for y, m in months_list}
+                        ym_series = (
+                            client_retro_df["Год"].astype(int) * 100
+                            + client_retro_df["Месяц"].astype(int)
+                        )
+                        retro_zp = client_retro_df[
+                            (client_retro_df["Тип файла"] == "ЗП")
+                            & ym_series.isin(months_ym)
+                        ]
+                        rs_retro_unique = retro_zp["RS"].dropna().nunique()
+
+                        retro_row['План проекта, шт.'] = kpi['plan_avg']
+                        retro_row['Факт проекта, шт.'] = kpi['fact_avg']
+                        retro_row['План/Факт проекта,%'] = kpi['pf_percent']
+                        retro_row['RS'] = rs_retro_unique
+                        retro_row['Кол-во анкет на 1 RS, шт.'] = (
+                            round(kpi['fact_avg'] / rs_retro_unique) if rs_retro_unique > 0 else 0
+                        )
+                        retro_row['Длительность'] = kpi['duration_avg']
+
+                rows.append(retro_row)
+
+            extended_df = pd.DataFrame(rows)
+
+            # Нормализация числовых колонок
+            numeric_cols_ext = [
+                'План проекта, шт.', 'План на дату, шт.', 'Факт проекта, шт.', 'Факт на дату, шт.',
+                'Длительность', 'Коэффициент месяца', 'Дней до конца проекта', 'Прогноз, шт.',
+                'Утилизация тайминга, %',
+                'Факт проекта_поручено, шт.', 'Факт проекта_не_поручено, шт.',
+                'Оплата факт средн., руб.', 'Клиент_длительность',
+                'Продление',
+                'Прогноз, шт', 'Прогноз ВП, %',
+                'Отклонение от плана на сегодня, шт.', 'Факт ВП, %',
+                'Оплата поручено средн., руб.',
+                'Ср. план на день для 100% плана',
+                'План/Факт на дату,%', 'План/Факт проекта,%',
+                '△План/Факт на дату, шт', '△План/Факт на дату, %',
+                '△План/Факт проекта, шт', '△План/Факт проекта, %',
+                'RS', 'Кол-во анкет на 1 RS, шт.',
+            ]
+
+            for c in numeric_cols_ext:
+                if c in extended_df.columns:
+                    extended_df[c] = pd.to_numeric(extended_df[c], errors='coerce')
+
+            display_cols = ['Регион', 'Период']
+
+            if show_client and 'Клиент' in extended_df.columns:
+                display_cols.append('Клиент')
+            if show_project and 'Проект' in extended_df.columns:
+                display_cols.append('Проект')
+            if show_wave and 'Волна' in extended_df.columns:
+                display_cols.append('Волна')
+            if show_dsm and 'DSM' in extended_df.columns:
+                display_cols.append('DSM')
+            if show_asm and 'ASM' in extended_df.columns:
+                display_cols.append('ASM')
+            if show_rs and 'RS' in extended_df.columns:
+                display_cols.append('RS')
+            if show_po and 'ПО' in extended_df.columns:
+                display_cols.append('ПО')
+
+            always_show = [
+                'План проекта, шт.',
+                'Факт проекта, шт.',
+                'План на дату, шт.',
+                'Факт на дату, шт.',
+                'План/Факт проекта,%',
+                '△План/Факт проекта, шт',
+                '△План/Факт проекта, %',
+                'План/Факт на дату,%',
+                '△План/Факт на дату, шт',
+                '△План/Факт на дату, %',
+                'Фокус',
+                'Прогноз на месяц, шт.',
+                'Длительность',
+                'Дней до конца проекта',
+                'Утилизация тайминга, %',
+                'Ср. план на день для 100% плана',
+                'Метод подбора дат',
+                'Оплата план',
+                'Оплата план средн., руб.',
+                'Оплата факт средн., руб.',
+                'Оплата план-факт средн., руб.',
+                'Оплата факт/план средн., %',
+                'Оплата средн. в динамике, руб.',
+                'Оплата средн. прогноз, руб.',
+                'Оплата поручено средн., руб.',
+                'Факт проекта_поручено, шт.',
+                'Факт проекта_не_поручено, шт.',
+                'RS',
+                'Кол-во анкет на 1 RS, шт.',
+            ]
+
+            for col in always_show:
+                if col in extended_df.columns:
+                    display_cols.append(col)
+
+            existing_display = [c for c in display_cols if c in extended_df.columns]
+
+            st.dataframe(extended_df[existing_display], use_container_width=True, hide_index=True)
         
         # Удаляем лишние колонки перед выгрузкой
         cols_to_drop = ['Оплата_поручено']
