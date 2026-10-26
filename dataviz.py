@@ -4307,21 +4307,49 @@ class DataVisualizer:
             return
 
         st.markdown("### 📥 Выгрузка датасета")
-        st.caption("Выберите месяцы и клиентов, затем сформируйте Excel-файл.")
-        
-        col_f1, col_f2 = st.columns(2)
-        
+        st.caption("Выберите месяцы, клиентов и регионы, затем сформируйте Excel-файл.")
+
+        # --- Справочник регионов: long -> set(short) ---
+        region_col_short = "Регион short"
+        region_col_long = "Регион long" if "Регион long" in df_dataset.columns else None
+
+        all_regions_long = []
+        long_to_short = {}
+
+        if region_col_short in df_dataset.columns:
+            df_for_filter = df_dataset.copy()
+            df_for_filter["_region_short"] = df_for_filter[region_col_short].astype(str).str.strip()
+
+            if region_col_long is not None:
+                df_for_filter["_region_long"] = df_for_filter[region_col_long].astype(str).str.strip()
+            else:
+                df_for_filter["_region_long"] = df_for_filter["_region_short"].apply(self._get_long_region)
+
+            short_to_long = (
+                df_for_filter[["_region_short", "_region_long"]]
+                .dropna()
+                .drop_duplicates(subset=["_region_short"])
+                .set_index("_region_short")["_region_long"]
+                .to_dict()
+            )
+
+            all_regions_long = sorted(set(short_to_long.values()))
+            for s, l in short_to_long.items():
+                long_to_short.setdefault(l, set()).add(s)
+
+        col_f1, col_f2, col_f3 = st.columns(3)
+
         with col_f1:
             pairs = sorted(set(
                 (int(y), int(m)) for y, m in df_dataset[["Год", "Месяц"]]
                 .dropna().itertuples(index=False, name=None)
             ))
-            
+
             period_opts = []
             if pairs:
                 y_min, m_min = pairs[0]
                 y_max, m_max = pairs[-1]
-                
+
                 y, m = y_min, m_min
                 while (y, m) <= (y_max, m_max):
                     period_opts.append(f"{m:02d}.{y}")
@@ -4329,14 +4357,14 @@ class DataVisualizer:
                         y, m = y + 1, 1
                     else:
                         m += 1
-            
+
             period_selected = st.multiselect(
                 "Выберите месяцы для выгрузки",
                 options=period_opts,
                 default=period_opts[-3:] if len(period_opts) >= 3 else period_opts,
                 key="retro_export_period"
             )
-        
+
         with col_f2:
             all_clients = sorted(df_dataset["Клиент"].dropna().unique().astype(str).tolist())
             clients_selected = st.multiselect(
@@ -4346,34 +4374,50 @@ class DataVisualizer:
                 key="retro_export_clients"
             )
 
+        with col_f3:
+            regions_selected = st.multiselect(
+                "Выберите регионы для выгрузки (пусто = все)",
+                options=all_regions_long,
+                default=[],
+                key="retro_export_regions"
+            )
+
         if st.button("📥 Сформировать Excel для выгрузки", type="primary", key="retro_build_export_btn"):
             df_export = df_dataset.copy()
-            
+
             if period_selected:
                 parsed_periods = set()
                 for p in period_selected:
                     mm, yyyy = p.split(".")
                     parsed_periods.add(int(yyyy) * 100 + int(mm))
-                
+
                 ym = (
                     df_export["Год"].astype("int64") * 100
                     + df_export["Месяц"].astype("int64")
                 )
                 df_export = df_export[ym.isin(parsed_periods)]
-                
+
             if clients_selected:
                 df_export = df_export[df_export["Клиент"].isin(clients_selected)]
-                
+
+            if regions_selected and region_col_short in df_export.columns:
+                selected_shorts = set()
+                for l in regions_selected:
+                    selected_shorts |= long_to_short.get(l, set())
+                df_export = df_export[
+                    df_export[region_col_short].astype(str).str.strip().isin(selected_shorts)
+                ]
+
             if df_export.empty:
                 st.warning("По выбранным фильтрам данных нет.")
             else:
                 export_buffer = BytesIO()
                 with pd.ExcelWriter(export_buffer, engine="openpyxl") as writer:
                     df_export.to_excel(writer, index=False, sheet_name="Данные")
-                
+
                 st.session_state.analytics_export_bytes = export_buffer.getvalue()
                 st.session_state.analytics_export_rows = len(df_export)
-        
+
         if st.session_state.get("analytics_export_bytes"):
             st.success(f"Файл готов ({st.session_state.analytics_export_rows} строк)")
             st.download_button(
