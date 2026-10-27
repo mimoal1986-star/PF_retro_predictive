@@ -3113,6 +3113,15 @@
       "fio_om": "",
       "added_at": "2026-10-27T06:31:26.794484",
       "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Виатрис",
+      "wave_name": "2026_10_Виатрис",
+      "project_code": "RU00.470.02.1131SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-10-27T06:57:41.437547",
+      "added_by": "unknown_user"
     }
   ],
   "included_projects": [
@@ -6383,8 +6392,16 @@
       "project_code": "RU00.806.01.1049SVZ26",
       "timestamp": "2026-10-27T06:31:26.794602",
       "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Виатрис",
+      "wave_name": "2026_10_Виатрис",
+      "project_code": "RU00.470.02.1131SVZ26",
+      "timestamp": "2026-10-27T06:57:41.437694",
+      "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-10-27T06:31:26.794614",
+  "last_updated": "2026-10-27T06:57:41.437708",
   "version": "1.0"
 }
