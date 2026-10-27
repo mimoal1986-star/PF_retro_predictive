@@ -3104,6 +3104,15 @@
       "fio_om": "",
       "added_at": "2026-10-27T06:29:22.649572",
       "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Умный Дом Sber",
+      "wave_name": "10.2026_Умный дом",
+      "project_code": "RU00.806.01.1049SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-10-27T06:31:26.794484",
+      "added_by": "unknown_user"
     }
   ],
   "included_projects": [
@@ -6366,8 +6375,16 @@
       "project_code": "RU00.817.01.0389SVZ26",
       "timestamp": "2026-10-27T06:29:22.649640",
       "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Умный Дом Sber",
+      "wave_name": "10.2026_Умный дом",
+      "project_code": "RU00.806.01.1049SVZ26",
+      "timestamp": "2026-10-27T06:31:26.794602",
+      "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-10-27T06:29:22.649647",
+  "last_updated": "2026-10-27T06:31:26.794614",
   "version": "1.0"
 }
