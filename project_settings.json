@@ -3077,6 +3077,15 @@
       "fio_om": "",
       "added_at": "2026-10-20T12:54:51.458478",
       "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Beeline",
+      "wave_name": "10.2026_SAMPLE",
+      "project_code": "_SAMPLE_Beeline_10.2026",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-10-27T06:28:32.621360",
+      "added_by": "unknown_user"
     }
   ],
   "included_projects": [
@@ -6315,8 +6324,16 @@
       "project_code": "Мультикод_.424",
       "timestamp": "2026-10-20T12:54:51.458567",
       "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Beeline",
+      "wave_name": "10.2026_SAMPLE",
+      "project_code": "_SAMPLE_Beeline_10.2026",
+      "timestamp": "2026-10-27T06:28:32.621460",
+      "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-10-20T12:54:51.458571",
+  "last_updated": "2026-10-27T06:28:32.621468",
   "version": "1.0"
 }
