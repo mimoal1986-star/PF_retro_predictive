@@ -581,17 +581,24 @@ class DataVisualizer:
             'RS': 'nunique',
         }
         
+        
         existing_agg = {k: v for k, v in agg_columns.items() if k in display_data.columns}
-
+        existing_agg = {k: v for k, v in existing_agg.items() if k not in group_cols}
+        
         project_data = display_data.groupby(group_cols).agg(existing_agg).reset_index()
+        # Кол-во RS: если развернули по RS — 1 на строку, иначе — число уникальных RS
+        if show_rs and 'RS' in project_data.columns:
+            project_data['Кол-во RS'] = 1
+        elif 'RS' in project_data.columns:
+            project_data['Кол-во RS'] = project_data['RS']
         
         # Кол-во анкет на 1 RS = Факт проекта / кол-во уникальных RS
-        if 'RS' in project_data.columns and 'Факт проекта, шт.' in project_data.columns:
+        if 'Кол-во RS' in project_data.columns and 'Факт проекта, шт.' in project_data.columns:
             project_data['Кол-во анкет на 1 RS, шт.'] = 0.0
-            mask_rs = project_data['RS'] > 0
+            mask_rs = project_data['Кол-во RS'] > 0
             if mask_rs.any():
                 project_data.loc[mask_rs, 'Кол-во анкет на 1 RS, шт.'] = (
-                    project_data.loc[mask_rs, 'Факт проекта, шт.'] / project_data.loc[mask_rs, 'RS']
+                    project_data.loc[mask_rs, 'Факт проекта, шт.'] / project_data.loc[mask_rs, 'Кол-во RS']
                 ).round(1)
 
         if group_cols == ['Клиент']:
