@@ -3086,6 +3086,24 @@
       "fio_om": "",
       "added_at": "2026-10-27T06:28:32.621360",
       "added_by": "unknown_user"
+    },
+    {
+      "project_name": "МАЗ МОСКВИЧ",
+      "wave_name": "2026.11_Визит",
+      "project_code": "RU00.817.01.0260SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-10-27T06:29:22.649250",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "МАЗ МОСКВИЧ",
+      "wave_name": "2026.11_Звонок",
+      "project_code": "RU00.817.01.0389SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-10-27T06:29:22.649572",
+      "added_by": "unknown_user"
     }
   ],
   "included_projects": [
@@ -6332,8 +6350,24 @@
       "project_code": "_SAMPLE_Beeline_10.2026",
       "timestamp": "2026-10-27T06:28:32.621460",
       "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "МАЗ МОСКВИЧ",
+      "wave_name": "2026.11_Визит",
+      "project_code": "RU00.817.01.0260SVZ26",
+      "timestamp": "2026-10-27T06:29:22.649377",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "МАЗ МОСКВИЧ",
+      "wave_name": "2026.11_Звонок",
+      "project_code": "RU00.817.01.0389SVZ26",
+      "timestamp": "2026-10-27T06:29:22.649640",
+      "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-10-27T06:28:32.621468",
+  "last_updated": "2026-10-27T06:29:22.649647",
   "version": "1.0"
 }
