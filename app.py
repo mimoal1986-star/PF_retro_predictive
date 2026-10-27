@@ -812,6 +812,23 @@ def process_all_data(settings_manager=None, force_recalc=False):
                 
                 st.session_state.debug_times.append(f"[DEBUG] Факт: {time.time() - start:.2f} сек")
                 start = time.time()
+
+                # ============ ДИАГНОСТИКА (НОВАЯ ВЕРСИЯ) ============
+                st.write("=== NEW: PLAN_RESULT ===")
+                st.write("shape:", None if plan_result is None else plan_result.shape)
+                st.write("columns:", None if plan_result is None else plan_result.columns.tolist())
+                st.write("empty:", None if plan_result is None else plan_result.empty)
+
+                st.write("=== NEW: SOURCE_DF ===")
+                st.write("shape:", None if source_df is None else source_df.shape)
+                st.write("columns:", None if source_df is None else source_df.columns.tolist())
+                st.write("empty:", None if source_df is None else source_df.empty)
+
+                st.write("=== NEW: FACT_RESULT ===")
+                st.write("shape:", None if fact_result is None else fact_result.shape)
+                st.write("columns:", None if fact_result is None else fact_result.columns.tolist())
+                st.write("empty:", None if fact_result is None else fact_result.empty)
+                # ====================================================
                 
                 final_result = visit_calculator._calculate_metrics(
                     fact_result, params, plan_result
