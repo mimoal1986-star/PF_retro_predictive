@@ -3084,7 +3084,7 @@
       "project_code": "_SAMPLE_Beeline_10.2026",
       "portal": "CXWAY",
       "fio_om": "",
-      "added_at": "2026-10-27T06:28:32.621360",
+      "added_at": "2026-10-27T06:26:52.257976",
       "added_by": "unknown_user"
     },
     {
@@ -3093,7 +3093,7 @@
       "project_code": "RU00.817.01.0260SVZ26",
       "portal": "CXWAY",
       "fio_om": "",
-      "added_at": "2026-10-27T06:29:22.649250",
+      "added_at": "2026-10-27T06:29:25.739016",
       "added_by": "unknown_user"
     },
     {
@@ -3102,7 +3102,7 @@
       "project_code": "RU00.817.01.0389SVZ26",
       "portal": "CXWAY",
       "fio_om": "",
-      "added_at": "2026-10-27T06:29:22.649572",
+      "added_at": "2026-10-27T06:29:25.739260",
       "added_by": "unknown_user"
     },
     {
@@ -3111,7 +3111,7 @@
       "project_code": "RU00.806.01.1049SVZ26",
       "portal": "CXWAY",
       "fio_om": "",
-      "added_at": "2026-10-27T06:31:26.794484",
+      "added_at": "2026-10-27T06:31:23.323427",
       "added_by": "unknown_user"
     },
     {
@@ -3120,7 +3120,70 @@
       "project_code": "RU00.470.02.1131SVZ26",
       "portal": "CXWAY",
       "fio_om": "",
-      "added_at": "2026-10-27T06:57:41.437547",
+      "added_at": "2026-10-27T06:57:31.809145",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Перекресток",
+      "wave_name": "2026.10_Перекресток фотоаудит",
+      "project_code": "RU01.418.15.1079SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-09T09:07:06.934071",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Перекресток",
+      "wave_name": "2026.10_Перекресток фотоаудит",
+      "project_code": "RU00.418.15.0317SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-09T09:07:06.934390",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Avito",
+      "wave_name": "2026.10_СЦ",
+      "project_code": "RU01.086.02.1114SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-09T09:07:06.934560",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Avito Почта РФ",
+      "wave_name": "2026.10_Avito Почта РФ",
+      "project_code": "RU00.086.02.1341SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-09T09:07:06.934695",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "ОхотАктив",
+      "wave_name": "2026.11_ОхотАктив",
+      "project_code": "RU00.337.02.0100SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-09T09:07:06.934810",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Яндекс Электро",
+      "wave_name": "2026.11_Яндекс Электро Звонок 1 волна",
+      "project_code": "RU00.441.01.01SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:04:38.229288",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Яндекс Электро",
+      "wave_name": "2026.11_Яндекс Электро Звонок 2 волна",
+      "project_code": "RU00.441.01.01SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:04:38.229633",
       "added_by": "unknown_user"
     }
   ],
@@ -6366,7 +6429,7 @@
       "project_name": "Beeline",
       "wave_name": "10.2026_SAMPLE",
       "project_code": "_SAMPLE_Beeline_10.2026",
-      "timestamp": "2026-10-27T06:28:32.621460",
+      "timestamp": "2026-10-27T06:26:52.258075",
       "user": "unknown_user"
     },
     {
@@ -6374,7 +6437,7 @@
       "project_name": "МАЗ МОСКВИЧ",
       "wave_name": "2026.11_Визит",
       "project_code": "RU00.817.01.0260SVZ26",
-      "timestamp": "2026-10-27T06:29:22.649377",
+      "timestamp": "2026-10-27T06:29:25.739131",
       "user": "unknown_user"
     },
     {
@@ -6382,7 +6445,7 @@
       "project_name": "МАЗ МОСКВИЧ",
       "wave_name": "2026.11_Звонок",
       "project_code": "RU00.817.01.0389SVZ26",
-      "timestamp": "2026-10-27T06:29:22.649640",
+      "timestamp": "2026-10-27T06:29:25.739314",
       "user": "unknown_user"
     },
     {
@@ -6390,7 +6453,7 @@
       "project_name": "Умный Дом Sber",
       "wave_name": "10.2026_Умный дом",
       "project_code": "RU00.806.01.1049SVZ26",
-      "timestamp": "2026-10-27T06:31:26.794602",
+      "timestamp": "2026-10-27T06:31:23.323562",
       "user": "unknown_user"
     },
     {
@@ -6398,10 +6461,66 @@
       "project_name": "Виатрис",
       "wave_name": "2026_10_Виатрис",
       "project_code": "RU00.470.02.1131SVZ26",
-      "timestamp": "2026-10-27T06:57:41.437694",
+      "timestamp": "2026-10-27T06:57:31.809203",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Перекресток",
+      "wave_name": "2026.10_Перекресток фотоаудит",
+      "project_code": "RU01.418.15.1079SVZ26",
+      "timestamp": "2026-11-09T09:07:06.934194",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Перекресток",
+      "wave_name": "2026.10_Перекресток фотоаудит",
+      "project_code": "RU00.418.15.0317SVZ26",
+      "timestamp": "2026-11-09T09:07:06.934454",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Avito",
+      "wave_name": "2026.10_СЦ",
+      "project_code": "RU01.086.02.1114SVZ26",
+      "timestamp": "2026-11-09T09:07:06.934611",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Avito Почта РФ",
+      "wave_name": "2026.10_Avito Почта РФ",
+      "project_code": "RU00.086.02.1341SVZ26",
+      "timestamp": "2026-11-09T09:07:06.934736",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "ОхотАктив",
+      "wave_name": "2026.11_ОхотАктив",
+      "project_code": "RU00.337.02.0100SVZ26",
+      "timestamp": "2026-11-09T09:07:06.934851",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Яндекс Электро",
+      "wave_name": "2026.11_Яндекс Электро Звонок 1 волна",
+      "project_code": "RU00.441.01.01SVZ26",
+      "timestamp": "2026-11-11T08:04:38.229445",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Яндекс Электро",
+      "wave_name": "2026.11_Яндекс Электро Звонок 2 волна",
+      "project_code": "RU00.441.01.01SVZ26",
+      "timestamp": "2026-11-11T08:04:38.229720",
       "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-10-27T06:57:41.437708",
+  "last_updated": "2026-11-11T08:04:38.229729",
   "version": "1.0"
 }
