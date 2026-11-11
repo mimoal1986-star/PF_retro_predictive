@@ -3185,6 +3185,60 @@
       "fio_om": "",
       "added_at": "2026-11-11T08:04:38.229633",
       "added_by": "unknown_user"
+    },
+    {
+      "project_name": "МВЭД_ВТБ Банк",
+      "wave_name": "2026.11-12_МВЭД_ВТБ",
+      "project_code": "RU00.116.01.0698SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.564994",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Лукойл (АЗС)",
+      "wave_name": "Октябрь 2026",
+      "project_code": "RU.00.177.02.0095SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.565340",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "Лукойл франчайзинг (АЗС)",
+      "wave_name": "Октябрь 2026",
+      "project_code": "RU.00.440.02.1340SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.565501",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "ГЛАВСТРОЙ",
+      "wave_name": "2026.11 ЖК Баланс",
+      "project_code": "RU00.342.06.0815SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.565619",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "ГЛАВСТРОЙ",
+      "wave_name": "2026.11_АО Береговой",
+      "project_code": "RU00.343.06.0815SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.565735",
+      "added_by": "unknown_user"
+    },
+    {
+      "project_name": "ФСК",
+      "wave_name": "11.2026_ФСК",
+      "project_code": "RU00.438.06.02SVZ26",
+      "portal": "CXWAY",
+      "fio_om": "",
+      "added_at": "2026-11-11T08:30:32.565843",
+      "added_by": "unknown_user"
     }
   ],
   "included_projects": [
@@ -6519,8 +6573,56 @@
       "project_code": "RU00.441.01.01SVZ26",
       "timestamp": "2026-11-11T08:04:38.229720",
       "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "МВЭД_ВТБ Банк",
+      "wave_name": "2026.11-12_МВЭД_ВТБ",
+      "project_code": "RU00.116.01.0698SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565136",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Лукойл (АЗС)",
+      "wave_name": "Октябрь 2026",
+      "project_code": "RU.00.177.02.0095SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565408",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "Лукойл франчайзинг (АЗС)",
+      "wave_name": "Октябрь 2026",
+      "project_code": "RU.00.440.02.1340SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565546",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "ГЛАВСТРОЙ",
+      "wave_name": "2026.11 ЖК Баланс",
+      "project_code": "RU00.342.06.0815SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565665",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "ГЛАВСТРОЙ",
+      "wave_name": "2026.11_АО Береговой",
+      "project_code": "RU00.343.06.0815SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565776",
+      "user": "unknown_user"
+    },
+    {
+      "action": "add_to_excluded",
+      "project_name": "ФСК",
+      "wave_name": "11.2026_ФСК",
+      "project_code": "RU00.438.06.02SVZ26",
+      "timestamp": "2026-11-11T08:30:32.565940",
+      "user": "unknown_user"
     }
   ],
-  "last_updated": "2026-11-11T08:04:38.229729",
+  "last_updated": "2026-11-11T08:30:32.565947",
   "version": "1.0"
 }
